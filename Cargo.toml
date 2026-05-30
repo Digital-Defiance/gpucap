@@ -1,7 +1,7 @@
 [package]
 name = "gpucap"
 description = "Run a command and report GPU, CPU, and unified memory usage on Apple Silicon"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 rust-version = "1.75"
 authors = ["Jessica Mulein <jessica@digitaldefiance.org>"]
@@ -25,6 +25,7 @@ name = "gpucap"
 path = "src/main.rs"
 
 [dependencies]
+brightdate = "0.5.7"
 clap = { version = "4.5", features = ["color"] }
 core-foundation = "0.10"
 libc = "0.2"

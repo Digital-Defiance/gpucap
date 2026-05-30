@@ -1,11 +1,15 @@
 use crate::metrics::{MetricSnapshot, PercentStats, Sampler};
+use brightdate::BrightDate;
 use std::io;
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone)]
 pub struct RunResult {
+    pub command: Vec<String>,
     pub wait_status: i32,
     pub elapsed_secs: f64,
+    pub start_bd: f64,
+    pub end_bd: f64,
     pub gpu: PercentStats,
     pub cpu: PercentStats,
     pub memory: PercentStats,
@@ -20,6 +24,7 @@ pub fn run_command(cmd: &[&str], interval: Duration) -> io::Result<RunResult> {
     }
 
     let start = Instant::now();
+    let start_bd = BrightDate::now().value;
     let mut sampler = Sampler::new();
     let mut gpu = PercentStats::default();
     let mut cpu = PercentStats::default();
@@ -81,8 +86,11 @@ pub fn run_command(cmd: &[&str], interval: Duration) -> io::Result<RunResult> {
     };
 
     Ok(RunResult {
+        command: cmd.iter().map(|s| (*s).to_string()).collect(),
         wait_status,
         elapsed_secs: start.elapsed().as_secs_f64(),
+        start_bd,
+        end_bd: BrightDate::now().value,
         gpu,
         cpu,
         memory,

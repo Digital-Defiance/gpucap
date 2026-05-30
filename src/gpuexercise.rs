@@ -1,6 +1,8 @@
+use crate::format::{summarize_line, FormatContext};
 use crate::iokit::gpu_utilization_iokit;
 use crate::metrics::PercentStats;
 use crate::output::print_exercise_report;
+use brightdate::BrightDate;
 use clap::{Arg, ArgAction, Command};
 use metal::{CompileOptions, Device, MTLResourceOptions};
 use std::mem;
@@ -87,6 +89,13 @@ pub fn run(args: &[String]) -> i32 {
                 .default_value("10"),
         )
         .arg(
+            Arg::new("format")
+                .short('f')
+                .long("format")
+                .value_name("FORMAT")
+                .help("Print statistics using a FORMAT string (plain text)")
+        )
+        .arg(
             Arg::new("color")
                 .long("color")
                 .value_name("WHEN")
@@ -143,8 +152,37 @@ pub fn run(args: &[String]) -> i32 {
     };
 
     match exercise_gpu(target, seconds) {
-        Ok(stats) => {
-            print_exercise_report(&colors, target, seconds, &stats);
+        Ok(result) => {
+            let format = matches
+                .get_one::<String>("format")
+                .cloned()
+                .or_else(|| std::env::var("GPUCAP_FORMAT").ok());
+
+            if let Some(fmt) = format {
+                let ctx = FormatContext {
+                    command: vec![
+                        "gpuexercise".into(),
+                        "--percent".into(),
+                        target.to_string(),
+                        "--seconds".into(),
+                        seconds.to_string(),
+                    ],
+                    wait_status: 0,
+                    elapsed_secs: result.elapsed_secs,
+                    start_bd: result.start_bd,
+                    end_bd: result.end_bd,
+                    gpu: result.gpu,
+                    cpu: PercentStats::default(),
+                    memory: PercentStats::default(),
+                    exercise_target: Some(target),
+                };
+                if let Err(e) = summarize_line(&mut std::io::stderr(), &fmt, &ctx) {
+                    eprintln!("gpucap gpuexercise: {e}");
+                    return 1;
+                }
+            } else {
+                print_exercise_report(&colors, target, seconds, &result.gpu);
+            }
             0
         }
         Err(e) => {
@@ -154,7 +192,14 @@ pub fn run(args: &[String]) -> i32 {
     }
 }
 
-fn exercise_gpu(target: f64, seconds: f64) -> Result<PercentStats, String> {
+struct ExerciseResult {
+    gpu: PercentStats,
+    elapsed_secs: f64,
+    start_bd: f64,
+    end_bd: f64,
+}
+
+fn exercise_gpu(target: f64, seconds: f64) -> Result<ExerciseResult, String> {
     let device = Device::system_default().ok_or("no Metal GPU found on this system")?;
     let loader = MetalLoader::new(&device)?;
 
@@ -167,7 +212,9 @@ fn exercise_gpu(target: f64, seconds: f64) -> Result<PercentStats, String> {
     }
     let effective_target = target.max(baseline + 2.0);
 
-    let deadline = Instant::now() + Duration::from_secs_f64(seconds);
+    let start = Instant::now();
+    let start_bd = BrightDate::now().value;
+    let deadline = start + Duration::from_secs_f64(seconds);
     let mut stats = PercentStats::default();
     let mut iters = initial_iters_for_target(effective_target);
     let mut batch_count: u32 = initial_batch_for_target(effective_target);
@@ -190,7 +237,12 @@ fn exercise_gpu(target: f64, seconds: f64) -> Result<PercentStats, String> {
         return Err("could not read GPU utilization (IOKit PerformanceStatistics)".into());
     }
 
-    Ok(stats)
+    Ok(ExerciseResult {
+        gpu: stats,
+        elapsed_secs: start.elapsed().as_secs_f64(),
+        start_bd,
+        end_bd: BrightDate::now().value,
+    })
 }
 
 fn measure_baseline() -> f64 {

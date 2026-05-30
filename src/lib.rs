@@ -1,5 +1,6 @@
 mod cf_utils;
 mod color;
+mod format;
 mod gpuexercise;
 mod iokit;
 mod ioreport;
@@ -9,6 +10,7 @@ mod platform;
 mod runner;
 
 pub use color::{parse_color_scheme, parse_color_when, ColorScheme, ColorWhen, Colors};
+pub use format::{summarize_line, FormatContext, DEFAULT_FORMAT};
 pub use metrics::PercentStats;
 pub use output::print_report;
 pub use platform::check_apple_silicon;
@@ -75,8 +77,16 @@ fn run_capture(args: &[String]) -> i32 {
             "Run a command and report GPU, CPU, and unified memory usage.\n\n\
              Examples:\n  \
                gpucap sleep 1\n  \
+               gpucap -f '%gA,%uA,%e,%Ws,%Wt' sleep 1\n  \
                gpucap --color=bright -- ffmpeg -i in.mp4 out.mp4\n  \
                gpucap gpuexercise --percent 60 --seconds 5",
+        )
+        .arg(
+            Arg::new("format")
+                .short('f')
+                .long("format")
+                .value_name("FORMAT")
+                .help("Print statistics using a FORMAT string (plain text; see --help)")
         )
         .arg(
             Arg::new("interval")
@@ -155,6 +165,30 @@ fn run_capture(args: &[String]) -> i32 {
         }
     };
 
-    print_report(&colors, &result);
+    let format = matches
+        .get_one::<String>("format")
+        .cloned()
+        .or_else(|| std::env::var("GPUCAP_FORMAT").ok());
+
+    if let Some(fmt) = format {
+        let ctx = FormatContext {
+            command: result.command.clone(),
+            wait_status: result.wait_status,
+            elapsed_secs: result.elapsed_secs,
+            start_bd: result.start_bd,
+            end_bd: result.end_bd,
+            gpu: result.gpu,
+            cpu: result.cpu,
+            memory: result.memory,
+            exercise_target: None,
+        };
+        if let Err(e) = summarize_line(&mut std::io::stderr(), &fmt, &ctx) {
+            eprintln!("gpucap: {e}");
+            return 1;
+        }
+    } else {
+        print_report(&colors, &result);
+    }
+
     wait_status_to_exit_code(result.wait_status)
 }
