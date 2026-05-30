@@ -1,0 +1,40 @@
+[package]
+name = "gpucap"
+description = "Run a command and report GPU, CPU, and unified memory usage on Apple Silicon"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+authors = ["Jessica Mulein <jessica@digitaldefiance.org>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/Digital-Defiance/gpucap"
+homepage = "https://github.com/Digital-Defiance/gpucap"
+keywords = ["gpu", "apple-silicon", "macos", "benchmark", "cli"]
+categories = ["command-line-utilities", "hardware-support"]
+exclude = ["/target"]
+
+[package.metadata.docs.rs]
+default-target = "aarch64-apple-darwin"
+
+[lib]
+name = "gpucap"
+path = "src/lib.rs"
+
+[[bin]]
+name = "gpucap"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.5", features = ["color"] }
+core-foundation = "0.10"
+libc = "0.2"
+metal = "0.29"
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
