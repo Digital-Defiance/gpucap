@@ -57,6 +57,10 @@ Follows BrightDate / bright-iputils conventions:
 | CPU | Mach `host_processor_info` (system-wide) |
 | Memory | Unified RAM via `host_statistics64` + `hw.memsize` |
 
+## Crates.io
+
+Available on Crates.io [https://crates.io/crates/gpucap](https://crates.io/crates/gpucap)
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
