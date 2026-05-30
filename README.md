@@ -57,6 +57,13 @@ Follows BrightDate / bright-iputils conventions:
 | CPU | Mach `host_processor_info` (system-wide) |
 | Memory | Unified RAM via `host_statistics64` + `hw.memsize` |
 
+## Homebrew
+
+```sh
+brew tap digital-defiance/homebrew-tap
+brew install gpucap
+```
+
 ## Crates.io
 
 Available on Crates.io [https://crates.io/crates/gpucap](https://crates.io/crates/gpucap)
