@@ -520,6 +520,7 @@
       <a class="nav-brand" href="#">bgpucap</a>
       <ul class="nav-links">
         <li><a href="#usage">Usage</a></li>
+        <li><a href="#subcommands">Subcommands</a></li>
         <li><a href="#format">Format</a></li>
         <li><a href="#metrics">Metrics</a></li>
         <li><a href="#install">Install</a></li>
@@ -556,15 +557,19 @@
         <div class="terminal-body">
           <!-- prettier-ignore -->
           <div class="cmd-line"><span class="cmt"># wrap a command — colored report on stderr</span>
-<span class="prompt">$</span><span class="cmd"> bgpucap ffmpeg -i in.mp4 out.mp4</span>
+<span class="prompt">$</span><span class="cmd"> bgpucap --metrics gpu,pwr,freq sleep 5</span>
 <span class="out-label">gpu     </span><span class="out-value">avg 12.3%</span>  <span class="out-warn">peak 45.6%</span>
 <span class="out-label">cpu     </span><span class="out-value">avg  8.1%</span>  <span class="out-warn">peak 23.4%</span>
 <span class="out-label">memory  </span><span class="out-value">avg 52.0%</span>  <span class="out-warn">peak 55.1%</span>
-<span class="out-label">real    </span><span class="out-value">1.234567</span><span class="out-unit"> s</span>
+<span class="out-label">gpu-mhz </span><span class="out-value">avg 900 MHz</span>  <span class="out-warn">peak 1200 MHz</span>
+<span class="out-label">gpu-pwr </span><span class="out-value">avg 23 W</span>  <span class="out-warn">peak 45 W</span>
+<span class="out-label">dram-pwr</span><span class="out-value">avg 21 W</span>  <span class="out-warn">peak 25 W</span>
+<span class="out-label">real    </span><span class="out-value">5.012345</span><span class="out-unit"> s</span>
 
-<span class="cmt"># machine output — CSV with BrightDate start/end</span>
-<span class="prompt">$</span><span class="cmd"> bgpucap -f '%gA,%gP,%uA,%uP,%hA,%hP,%e,%Ws,%Wt' sleep 1</span>
-<span class="out">0.0,0.0,2.1,4.3,51.2,51.4,1.00,9628.198441000,9628.199441000</span></div>
+<span class="cmt"># JSON on stdout — pipe-friendly; human report stays on stderr</span>
+<span class="prompt">$</span><span class="cmd"> bgpucap -f json --metrics basic sleep 1 > before.json</span>
+<span class="prompt">$</span><span class="cmd"> bgpucap compare before.json after.json</span>
+<span class="out-label">gpu     </span><span class="out-value">     10.0</span>      <span class="out-value">30.0</span>      <span class="out-good">+20.0</span></div>
         </div>
       </div>
 
@@ -588,16 +593,23 @@
         </p>
 
         <pre><code>bgpucap sleep 1
+bgpucap --metrics basic sleep 1          # lightweight: skip extended IOReport
+bgpucap --metrics gpu,pwr,freq sleep 5
+bgpucap --list-metrics
+bgpucap --columns --separator=' / ' sleep 1
+bgpucap --pid 1234 --metrics cmd-gpu sleep 5
+bgpucap --no-track-gpu sleep 1           # skip per-process GPU tracking
 bgpucap --color=bright -- ffmpeg -i in.mp4 out.mp4
 bgpucap --interval 50 make -j8</code></pre>
 
-        <h3>GPU exerciser</h3>
+        <h3>Metric filtering</h3>
         <p>
-          <code>gpuexercise</code> is a subcommand (not a separate binary) that
-          drives sustained GPU load via a Metal compute shader and feedback loop:
+          <code>--metrics=LIST</code> selects human or JSON output (default: all).
+          Names and groups: <code>basic</code>, <code>power</code>, <code>freq</code>,
+          <code>thermal</code>, <code>mem-detail</code>, <code>cmd-gpu</code>, …
+          Run <code>bgpucap --list-metrics</code> for the full list.
+          Env: <code>BGPUCAP_METRICS</code>.
         </p>
-        <pre><code>bgpucap gpuexercise --percent 50 --seconds 10
-bgpucap gpuexercise -f 'target=%tG gpu=%gA/%gP elapsed=%e' -p 75 -s 5</code></pre>
 
         <div class="feature-grid">
           <div class="feature-card">
@@ -617,8 +629,17 @@ bgpucap gpuexercise -f 'target=%tG gpu=%gA/%gP elapsed=%e' -p 75 -s 5</code></pr
               <code>--color-scheme</code> — <code>default</code> or
               <code>bright</code>. Env: <code>BGPUCAP_COLOR</code>,
               <code>BGPUCAP_COLOR_SCHEME</code> (<code>GPUCAP_*</code> still
-              accepted), plus <code>NO_COLOR</code> /
-              <code>CLICOLOR</code>.
+              accepted), plus <code>NO_COLOR</code> / <code>CLICOLOR</code>.
+            </p>
+          </div>
+          <div class="feature-card">
+            <h3>Graceful degradation</h3>
+            <p>
+              Core <code>gpu</code>, <code>cpu</code>, and <code>memory</code>
+              always work. Extended metrics (power, freq, thermal, …) are
+              best-effort on untested chips; omitted from output when unavailable.
+              Validated on <strong>Apple M4 Max</strong>; chip family in JSON
+              (<code>chip.family</code>: <code>m1</code>–<code>m4</code>).
             </p>
           </div>
         </div>
@@ -635,6 +656,72 @@ bgpucap gpuexercise -f 'target=%tG gpu=%gA/%gP elapsed=%e' -p 75 -s 5</code></pr
       </div>
     </section>
 
+    <section id="subcommands">
+      <div class="container">
+        <div class="section-label">Subcommands</div>
+        <h2>watch · compare · gpuexercise</h2>
+
+        <h3>Continuous watch</h3>
+        <p>
+          Sample system metrics until Ctrl+C or <code>--count N</code>.
+          Default interval: 1000&nbsp;ms (override with <code>--interval</code>).
+        </p>
+        <pre><code>bgpucap watch                          # live lines on stderr
+bgpucap watch -n 10 --interval 500     # 10 samples every 500 ms
+bgpucap watch -f json                  # NDJSON on stdout + summary JSON on exit
+bgpucap watch --metrics basic --pid 1234</code></pre>
+
+        <h3>Compare JSON reports</h3>
+        <p>
+          Diff two <code>-f json</code> captures. Compares the common subset of
+          metrics present in both files; one-sided metrics are skipped (noted on
+          stderr).
+        </p>
+        <pre><code>bgpucap -f json --metrics basic sleep 5 > before.json
+# … run workload …
+bgpucap -f json --metrics basic sleep 5 > after.json
+bgpucap compare before.json after.json</code></pre>
+
+        <h3>GPU exerciser</h3>
+        <p>
+          <code>gpuexercise</code> drives sustained GPU load via a Metal compute
+          shader (subcommand, not a separate binary):
+        </p>
+        <pre><code>bgpucap gpuexercise --percent 50 --seconds 10
+bgpucap gpuexercise -p 75 -s 5 -f json
+bgpucap gpuexercise --mode sample -s 5      # ambient only
+bgpucap gpuexercise --mode load -p 80 -s 5  # always generate load</code></pre>
+        <table class="bd-table">
+          <thead>
+            <tr><th>Mode</th><th>Behavior</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>best-effort</code> (default)</td><td>Skip load if target ≤ ambient; suggests reachable <code>--percent</code></td></tr>
+            <tr><td><code>load</code></td><td>Always generate Metal load to chase target</td></tr>
+            <tr><td><code>sample</code></td><td>No load; measure ambient GPU for the duration</td></tr>
+          </tbody>
+        </table>
+
+        <div class="terminal" style="display: block; margin-top: 2rem; max-width: 100%">
+          <div class="terminal-bar">
+            <span class="dot dot-red"></span>
+            <span class="dot dot-yellow"></span>
+            <span class="dot dot-green"></span>
+          </div>
+          <div class="terminal-body">
+            <!-- prettier-ignore -->
+            <div class="cmd-line"><span class="cmt"># watch — colored live samples on stderr</span>
+<span class="prompt">$</span><span class="cmd"> bgpucap watch -n 3 --interval 1000</span>
+<span class="out-label">[1] </span><span class="out-value">gpu 14.2%</span>  <span class="out-value">cpu 6.1%</span>  <span class="out-value">mem 51.3%</span>
+<span class="out-label">[2] </span><span class="out-value">gpu 18.7%</span>  <span class="out-value">cpu 7.4%</span>  <span class="out-value">mem 51.5%</span>
+<span class="out-label">[3] </span><span class="out-value">gpu 12.1%</span>  <span class="out-value">cpu 5.9%</span>  <span class="out-value">mem 51.2%</span>
+<span class="out-label">gpu     </span><span class="out-value">avg 15.0%</span>  <span class="out-warn">peak 18.7%</span>
+<span class="out-label">cpu     </span><span class="out-value">avg  6.5%</span>  <span class="out-warn">peak  7.4%</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section id="format">
       <div class="container">
         <div class="section-label">Machine output</div>
@@ -648,7 +735,15 @@ bgpucap gpuexercise -f 'target=%tG gpu=%gA/%gP elapsed=%e' -p 75 -s 5</code></pr
         </p>
 
         <pre><code>bgpucap -f '%gA,%gP,%uA,%uP,%hA,%hP,%e,%Ws,%Wt' sleep 1
+bgpucap -f json --metrics basic sleep 1 > report.json
 bgpucap -f 'cmd=%C x=%x gpu_peak=%gP start=%Ws' cargo build</code></pre>
+
+        <p class="callout">
+          <strong style="color: var(--text-bright)"><code>-f json</code>:</strong>
+          Structured JSON on <strong>stdout</strong> (human reports on stderr).
+          Respects <code>--metrics</code>. Use with
+          <code>bgpucap compare</code> for before/after diffs.
+        </p>
 
         <div class="format-section">
           <span class="tier-badge">gpucap</span>
@@ -663,8 +758,30 @@ bgpucap -f 'cmd=%C x=%x gpu_peak=%gP start=%Ws' cargo build</code></pre>
             </thead>
             <tbody>
               <tr><td>%gA / %gP</td><td>GPU average / peak %</td></tr>
+              <tr><td>%gI / %gJ</td><td>GPU memory in use (bytes) avg / peak</td></tr>
+              <tr><td>%gM / %gO</td><td>GPU memory allocated (bytes) avg / peak</td></tr>
+              <tr><td>%gR / %gS</td><td>Renderer utilization % avg / peak</td></tr>
+              <tr><td>%gL / %gY</td><td>Tiler utilization % avg / peak</td></tr>
+              <tr><td>%gF / %gV</td><td>GPU frequency MHz avg / peak</td></tr>
+              <tr><td>%gU / %gW</td><td>GPU temperature °C avg / peak</td></tr>
+              <tr><td>%gT</td><td>Thermal throttle (% of samples)</td></tr>
               <tr><td>%uA / %uP</td><td>CPU average / peak % (system-wide)</td></tr>
+              <tr><td>%uF / %uV</td><td>CPU frequency MHz avg / peak (blended E/P)</td></tr>
+              <tr><td>%gB / %gK</td><td>GPU power (W) avg / peak</td></tr>
+              <tr><td>%gC / %gD</td><td>Command process GPU % avg / peak</td></tr>
+              <tr><td>%gN / %gQ</td><td>GPU SRAM power (W) avg / peak</td></tr>
+              <tr><td>%uE / %uQ</td><td>E-core CPU frequency MHz avg / peak</td></tr>
+              <tr><td>%uH / %uZ</td><td>P-core CPU frequency MHz avg / peak</td></tr>
+              <tr><td>%uB / %uK</td><td>CPU package power (W) avg / peak</td></tr>
+              <tr><td>%uG / %uR</td><td>E-core power (W) avg / peak</td></tr>
+              <tr><td>%uI / %uS</td><td>P-core power (W) avg / peak</td></tr>
+              <tr><td>%aB / %aK</td><td>ANE power (W) avg / peak</td></tr>
+              <tr><td>%hG / %hJ</td><td>DRAM power (W) avg / peak</td></tr>
               <tr><td>%hA / %hP</td><td>Unified memory average / peak %</td></tr>
+              <tr><td>%hW / %hX</td><td>Wired memory bytes avg / peak</td></tr>
+              <tr><td>%hC / %hD</td><td>Compressed memory bytes avg / peak</td></tr>
+              <tr><td>%hS / %hO</td><td>Swap used bytes avg / peak</td></tr>
+              <tr><td>%hK / %hL</td><td>Memory pressure level avg / peak (0–2)</td></tr>
               <tr><td>%tG</td><td>Exercise target GPU % (<code>gpuexercise</code> only)</td></tr>
             </tbody>
           </table>
@@ -719,23 +836,55 @@ bgpucap -f 'cmd=%C x=%x gpu_peak=%gP start=%Ws' cargo build</code></pre>
           </thead>
           <tbody>
             <tr>
-              <td>GPU</td>
+              <td>GPU %</td>
               <td>IOKit <code>Device Utilization %</code></td>
-              <td>IOReport fallback when IOKit unavailable</td>
+              <td>IOReport GPUPH fallback</td>
+            </tr>
+            <tr>
+              <td>GPU memory</td>
+              <td>IOKit <code>PerformanceStatistics</code></td>
+              <td>In use / allocated unified memory bytes</td>
+            </tr>
+            <tr>
+              <td>GPU frequency</td>
+              <td>IOReport + pmgr <code>voltage-states9</code></td>
+              <td>Weighted MHz from P-state residency</td>
+            </tr>
+            <tr>
+              <td>GPU thermal</td>
+              <td>IOReport <code>GPU_CLTM</code>, <code>Tg*a Max</code></td>
+              <td>Throttle % and die temperature</td>
+            </tr>
+            <tr>
+              <td>GPU / CPU / DRAM power</td>
+              <td>IOReport Energy Model</td>
+              <td><code>GPU Energy</code> (nJ), <code>CPU Energy</code> / <code>DRAM</code> (mJ) → watts</td>
+            </tr>
+            <tr>
+              <td>ANE power</td>
+              <td>IOReport Energy Model</td>
+              <td><code>ANE</code> total or <code>ANE0</code> shard counters</td>
+            </tr>
+            <tr>
+              <td>E-core / P-core power</td>
+              <td>IOReport Energy Model</td>
+              <td><code>EACC_CPU</code> / <code>ECPU</code>, sum of <code>PACC*_CPU</code></td>
             </tr>
             <tr>
               <td>CPU</td>
               <td>Mach <code>host_processor_info</code></td>
-              <td>System-wide, not per-process</td>
+              <td>System-wide; E/P MHz and blended freq from IOReport PCPU/ECPU</td>
             </tr>
             <tr>
               <td>Memory</td>
-              <td><code>host_statistics64</code> + <code>hw.memsize</code></td>
-              <td>Unified RAM on Apple Silicon</td>
+              <td><code>host_statistics64</code>, <code>vm.swapusage</code></td>
+              <td>Unified RAM %, wired, compressed, swap, pressure</td>
             </tr>
           </tbody>
         </table>
         <p style="margin-top: 1.5rem; font-size: 0.875rem">
+          Extended metrics are validated on <strong>Apple M4 Max</strong>. On other
+          Apple Silicon chips, bgpucap prints a footnote and reports best-effort values.
           Samples are taken every <code>--interval</code> ms (default 100) while
           the child runs. Average and peak are computed over all samples.
         </p>
@@ -788,9 +937,9 @@ bgpucap -f '%gA,%uA,%e' sleep 0.1</code></pre>
         <h2>Man page</h2>
         <p>
           <code>man/bgpucap.1</code> ships with the crate. Homebrew installs it
-          as <code>man bgpucap</code>. The page documents options, format
-          specifiers, environment variables, and the
-          <code>gpuexercise</code> subcommand.
+          as <code>man bgpucap</code>. Documents options, format specifiers,
+          environment variables, and the <code>gpuexercise</code>,
+          <code>watch</code>, and <code>compare</code> subcommands.
         </p>
         <pre><code>man bgpucap          # after brew install
 man bgpucap | grep -A2 FORMAT   # format specifiers</code></pre>

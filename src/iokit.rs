@@ -22,16 +22,29 @@ extern "C" {
     fn IOObjectRelease(object: u32) -> IOReturn;
 }
 
-pub fn gpu_utilization_iokit() -> Option<f64> {
+#[derive(Debug, Clone, Copy, Default)]
+pub struct GpuIoKitStats {
+    pub device_util_pct: Option<f64>,
+    pub renderer_util_pct: Option<f64>,
+    pub tiler_util_pct: Option<f64>,
+    pub mem_in_use_bytes: Option<u64>,
+    pub mem_allocated_bytes: Option<u64>,
+}
+
+pub fn gpu_iokit_stats() -> Option<GpuIoKitStats> {
     for class in ["IOAccelerator", "AGXAccelerator"] {
-        if let Some(util) = read_device_utilization(class) {
-            return Some(util);
+        if let Some(stats) = read_performance_statistics(class) {
+            return Some(stats);
         }
     }
     None
 }
 
-fn read_device_utilization(class_name: &str) -> Option<f64> {
+pub fn gpu_utilization_iokit() -> Option<f64> {
+    gpu_iokit_stats().and_then(|s| s.device_util_pct)
+}
+
+fn read_performance_statistics(class_name: &str) -> Option<GpuIoKitStats> {
     unsafe {
         let class_cstr = std::ffi::CString::new(class_name).ok()?;
         let matching = IOServiceMatching(class_cstr.as_ptr());
@@ -57,9 +70,25 @@ fn read_device_utilization(class_name: &str) -> Option<f64> {
         }
 
         let dict = CFDictionary::<CFString, CFType>::wrap_under_create_rule(prop as *const _);
-        let util_key = CFString::new("Device Utilization %");
-        let value = dict.find(util_key)?;
+        Some(GpuIoKitStats {
+            device_util_pct: read_f64(&dict, "Device Utilization %"),
+            renderer_util_pct: read_f64(&dict, "Renderer Utilization %"),
+            tiler_util_pct: read_f64(&dict, "Tiler Utilization %"),
+            mem_in_use_bytes: read_u64(&dict, "In use system memory"),
+            mem_allocated_bytes: read_u64(&dict, "Alloc system memory"),
+        })
+    }
+}
+
+fn read_f64(dict: &CFDictionary<CFString, CFType>, key: &str) -> Option<f64> {
+    let cf_key = CFString::new(key);
+    let value = dict.find(cf_key)?;
+    unsafe {
         let number = CFNumber::wrap_under_get_rule(value.as_CFTypeRef() as *const _);
         number.to_f64()
     }
+}
+
+fn read_u64(dict: &CFDictionary<CFString, CFType>, key: &str) -> Option<u64> {
+    read_f64(dict, key).map(|v| v as u64)
 }

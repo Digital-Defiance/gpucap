@@ -92,6 +92,27 @@ fn format_brightdate_fields() {
 }
 
 #[test]
+fn format_extended_metrics() {
+    if !apple_silicon_host() {
+        eprintln!("skipping extended format integration test (Apple Silicon required)");
+        return;
+    }
+
+    cmd()
+        .env(
+            "BGPUCAP_FORMAT",
+            "mem=%gI freq=%gF cpu=%uF",
+        )
+        .args(["sleep", "0.3"])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_match(
+            r"^mem=\d+ freq=\d+ cpu=\d+\n$",
+        )
+        .unwrap());
+}
+
+#[test]
 fn format_default_constant() {
     if !apple_silicon_host() {
         eprintln!("skipping format integration test (Apple Silicon required)");
@@ -105,6 +126,117 @@ fn format_default_constant() {
         .success()
         .stderr(predicate::str::is_match(
             r"^\d+\.\d+,\d+\.\d+,\d+\.\d+,\d+\.\d+,\d+\.\d+,\d+\.\d+,\d+\.\d+,\d+\.\d{9},\d+\.\d{9}\n$",
+        )
+        .unwrap());
+}
+
+#[test]
+fn metrics_filter_basic_human_output() {
+    if !apple_silicon_host() {
+        eprintln!("skipping metrics filter test (Apple Silicon required)");
+        return;
+    }
+
+    cmd()
+        .args(["--metrics", "basic", "--no-color", "sleep", "0"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("gpu"))
+        .stderr(predicate::str::contains("cpu"))
+        .stderr(predicate::str::contains("memory"))
+        .stderr(predicate::str::contains("real"))
+        .stderr(predicate::str::contains("gpu-pwr").not())
+        .stderr(predicate::str::contains("renderer").not());
+}
+
+#[test]
+fn metrics_filter_unknown_name_fails() {
+    cmd()
+        .args(["--metrics", "not-a-metric", "sleep", "0"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unknown metric"));
+}
+
+#[test]
+fn json_format_output_stdout() {
+    if !apple_silicon_host() {
+        eprintln!("skipping json format test (Apple Silicon required)");
+        return;
+    }
+
+    let output = cmd()
+        .args(["--metrics", "basic", "-f", "json", "sleep", "0"])
+        .output()
+        .expect("failed to run bgpucap");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"gpu\""));
+    assert!(stdout.contains("\"elapsed_secs\""));
+    assert!(stdout.contains("\"chip\""));
+}
+
+#[test]
+fn compare_subcommand_help() {
+    cmd()
+        .args(["compare", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Compare metrics"));
+}
+
+#[test]
+fn watch_subcommand_help() {
+    cmd()
+        .args(["watch", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("continuously"));
+}
+
+#[test]
+fn list_metrics_flag() {
+    cmd()
+        .arg("--list-metrics")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("basic"))
+        .stdout(predicate::str::contains("gpu-pwr"));
+}
+
+#[test]
+fn format_cluster_power_metrics() {
+    if !apple_silicon_host() {
+        eprintln!("skipping cluster power format test (Apple Silicon required)");
+        return;
+    }
+
+    cmd()
+        .env("BGPUCAP_FORMAT", "cpu=%uB e=%uG p=%uI")
+        .args(["sleep", "1"])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_match(
+            r"^cpu=\d+(\.\d+)? e=\d+(\.\d+)? p=\d+(\.\d+)?\n$",
+        )
+        .unwrap());
+}
+
+#[test]
+fn format_system_power_metrics() {
+    if !apple_silicon_host() {
+        eprintln!("skipping power format integration test (Apple Silicon required)");
+        return;
+    }
+
+    cmd()
+        .env("BGPUCAP_FORMAT", "gpu=%gB cpu=%uB dram=%hG ane=%aB")
+        .args(["sleep", "1"])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_match(
+            r"^gpu=\d+(\.\d+)? cpu=\d+(\.\d+)? dram=\d+(\.\d+)? ane=\d+(\.\d+)?\n$",
         )
         .unwrap());
 }

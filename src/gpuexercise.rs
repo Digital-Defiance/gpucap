@@ -1,7 +1,9 @@
 use crate::format::{summarize_line, FormatContext};
-use crate::iokit::gpu_utilization_iokit;
-use crate::metrics::PercentStats;
+use crate::gpu_proc::GpuProcessTracker;
+use crate::metrics::{SampleTier, Sampler};
 use crate::output::print_exercise_report;
+use crate::platform::ChipProfile;
+use crate::runner::{RunResult, RunStats};
 use brightdate::BrightDate;
 use clap::{Arg, ArgAction, Command};
 use metal::{CompileOptions, Device, MTLResourceOptions};
@@ -10,6 +12,26 @@ use std::time::{Duration, Instant};
 
 const BUFFER_FLOATS: usize = 1 << 20;
 const THREADGROUP_WIDTH: u64 = 256;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExerciseMode {
+    BestEffort,
+    Load,
+    Sample,
+}
+
+impl ExerciseMode {
+    fn parse(value: &str) -> Result<Self, String> {
+        match value.to_ascii_lowercase().as_str() {
+            "best-effort" | "best_effort" | "besteffort" => Ok(Self::BestEffort),
+            "load" => Ok(Self::Load),
+            "sample" | "ambient" => Ok(Self::Sample),
+            other => Err(format!(
+                "unknown exercise mode '{other}' (expected best-effort, load, or sample)"
+            )),
+        }
+    }
+}
 
 struct MetalLoader {
     pipeline: metal::ComputePipelineState,
@@ -117,7 +139,16 @@ pub fn run(args: &[String]) -> i32 {
                 .value_name("SCHEME")
                 .help("Color palette: default or bright")
                 .default_value("default"),
-        );
+        )
+        .arg(
+            Arg::new("mode")
+                .long("mode")
+                .value_name("MODE")
+                .help("best-effort: skip load if target below ambient (default); load: always generate GPU load; sample: measure ambient only")
+                .default_value("best-effort"),
+        )
+        .args(crate::output_style_args())
+        .args(crate::common_args());
 
     let argv: Vec<&str> = std::iter::once("gpuexercise")
         .chain(args.iter().skip(2).map(String::as_str))
@@ -151,7 +182,27 @@ pub fn run(args: &[String]) -> i32 {
         }
     };
 
-    match exercise_gpu(target, seconds) {
+    let mode = match ExerciseMode::parse(
+        matches
+            .get_one::<String>("mode")
+            .map(|s| s.as_str())
+            .unwrap_or("best-effort"),
+    ) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("bgpucap gpuexercise: {e}");
+            return 2;
+        }
+    };
+
+    let chip = ChipProfile::detect();
+    let style = match crate::resolve_report_style(&matches) {
+        Ok(style) => style,
+        Err(code) => return code,
+    };
+    let tier = crate::resolve_sample_tier(&style.metrics, None);
+
+    match exercise_gpu(target, seconds, mode, tier) {
         Ok(result) => {
             let format = matches
                 .get_one::<String>("format")
@@ -163,29 +214,24 @@ pub fn run(args: &[String]) -> i32 {
                 });
 
             if let Some(fmt) = format {
-                let ctx = FormatContext {
-                    command: vec![
-                        "gpuexercise".into(),
-                        "--percent".into(),
-                        target.to_string(),
-                        "--seconds".into(),
-                        seconds.to_string(),
-                    ],
-                    wait_status: 0,
-                    elapsed_secs: result.elapsed_secs,
-                    start_bd: result.start_bd,
-                    end_bd: result.end_bd,
-                    gpu: result.gpu,
-                    cpu: PercentStats::default(),
-                    memory: PercentStats::default(),
-                    exercise_target: Some(target),
-                };
-                if let Err(e) = summarize_line(&mut std::io::stderr(), &fmt, &ctx) {
+                let ctx = FormatContext::from_run(&result, Some(target));
+                if crate::json::is_json_format(&fmt) {
+                    if let Err(e) = crate::json::write_result(
+                        &mut std::io::stdout(),
+                        &result,
+                        &chip,
+                        &style.metrics,
+                        Some(target),
+                    ) {
+                        eprintln!("bgpucap gpuexercise: {e}");
+                        return 1;
+                    }
+                } else if let Err(e) = summarize_line(&mut std::io::stderr(), &fmt, &ctx) {
                     eprintln!("bgpucap gpuexercise: {e}");
                     return 1;
                 }
             } else {
-                print_exercise_report(&colors, target, seconds, &result.gpu);
+                print_exercise_report(&colors, &chip, target, seconds, &result, &style);
             }
             0
         }
@@ -196,68 +242,131 @@ pub fn run(args: &[String]) -> i32 {
     }
 }
 
-struct ExerciseResult {
-    gpu: PercentStats,
-    elapsed_secs: f64,
-    start_bd: f64,
-    end_bd: f64,
-}
-
-fn exercise_gpu(target: f64, seconds: f64) -> Result<ExerciseResult, String> {
+fn exercise_gpu(
+    target: f64,
+    seconds: f64,
+    mode: ExerciseMode,
+    tier: SampleTier,
+) -> Result<RunResult, String> {
     let device = Device::system_default().ok_or("no Metal GPU found on this system")?;
     let loader = MetalLoader::new(&device)?;
+    let mut sampler = Sampler::with_tier(tier);
+    let self_pid = std::process::id() as i32;
+    let mut gpu_proc = if tier == SampleTier::Full || mode != ExerciseMode::Sample {
+        GpuProcessTracker::new(self_pid)
+    } else {
+        None
+    };
 
-    let baseline = measure_baseline();
-    if target <= baseline + 1.0 {
+    let baseline = measure_baseline(&mut sampler);
+    let chase_target = match mode {
+        ExerciseMode::Sample => false,
+        ExerciseMode::Load => true,
+        ExerciseMode::BestEffort => target > baseline + 1.0,
+    };
+    if mode == ExerciseMode::BestEffort && !chase_target {
+        let suggested = suggest_percent(baseline);
         eprintln!(
             "bgpucap gpuexercise: note: ambient GPU usage is about {baseline:.0}%; \
-             cannot hold a target at or below that (try a higher --percent)"
+             cannot hold a target at or below that (try --percent {suggested:.0}, \
+             --mode load, or --mode sample)"
         );
     }
-    let effective_target = target.max(baseline + 2.0);
+    let effective_target = if chase_target {
+        target.min(100.0)
+    } else {
+        baseline
+    };
 
     let start = Instant::now();
     let start_bd = BrightDate::now().value;
     let deadline = start + Duration::from_secs_f64(seconds);
-    let mut stats = PercentStats::default();
-    let mut iters = initial_iters_for_target(effective_target);
-    let mut batch_count: u32 = initial_batch_for_target(effective_target);
+    let mut stats = RunStats::default();
+    let mut iters = if chase_target {
+        initial_iters_for_target(effective_target)
+    } else {
+        100
+    };
+    let mut batch_count: u32 = if chase_target {
+        initial_batch_for_target(effective_target)
+    } else {
+        1
+    };
+    let mut last_sample = Instant::now();
 
     while Instant::now() < deadline {
-        for _ in 0..batch_count {
-            loader.dispatch(iters);
+        if chase_target {
+            for _ in 0..batch_count {
+                if Instant::now() >= deadline {
+                    break;
+                }
+                loader.dispatch(iters);
+            }
+            if Instant::now() >= deadline {
+                break;
+            }
         }
 
-        std::thread::sleep(Duration::from_millis(100));
+        let sample_interval = Duration::from_millis(100);
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        std::thread::sleep(remaining.min(sample_interval));
 
-        let util = gpu_utilization_iokit().unwrap_or(0.0);
-        stats.record(util);
+        if Instant::now() >= deadline {
+            break;
+        }
 
-        iters = adjust_iters(iters, util, effective_target);
-        batch_count = adjust_batch(batch_count, util, effective_target);
+        let now = Instant::now();
+        let dt = now.duration_since(last_sample).as_secs_f64();
+        last_sample = now;
+
+        let mut snapshot = sampler.sample();
+        if let Some(tracker) = gpu_proc.as_mut() {
+            if let Some(cmd_gpu) = tracker.sample(dt) {
+                snapshot.command_gpu = Some(cmd_gpu);
+            }
+        }
+        stats.record(&snapshot);
+
+        if chase_target {
+            let util = snapshot.gpu;
+            iters = adjust_iters(iters, util, effective_target);
+            batch_count = adjust_batch(batch_count, util, effective_target);
+        }
     }
 
-    if stats.samples == 0 {
+    if !stats.has_gpu_samples() {
         return Err("could not read GPU utilization (IOKit PerformanceStatistics)".into());
     }
 
-    Ok(ExerciseResult {
-        gpu: stats,
-        elapsed_secs: start.elapsed().as_secs_f64(),
+    let elapsed = start.elapsed().as_secs_f64();
+
+    Ok(stats.into_run_result(
+        vec![
+            "gpuexercise".into(),
+            "--percent".into(),
+            target.to_string(),
+            "--seconds".into(),
+            seconds.to_string(),
+        ],
+        0,
+        elapsed,
         start_bd,
-        end_bd: BrightDate::now().value,
-    })
+        BrightDate::now().value,
+        Some(self_pid),
+    ))
 }
 
-fn measure_baseline() -> f64 {
+fn suggest_percent(baseline: f64) -> f64 {
+    (baseline + 5.0).min(100.0).max(1.0)
+}
+
+fn measure_baseline(sampler: &mut Sampler) -> f64 {
     let mut sum = 0.0;
     let mut n = 0u32;
     let deadline = Instant::now() + Duration::from_millis(400);
     while Instant::now() < deadline {
-        if let Some(util) = gpu_utilization_iokit() {
-            sum += util;
-            n += 1;
-        }
+        sum += sampler.sample().gpu;
+        n += 1;
         std::thread::sleep(Duration::from_millis(100));
     }
     if n == 0 {
@@ -285,7 +394,7 @@ fn adjust_iters(current: u32, util: f64, target: f64) -> u32 {
     } else {
         current
     };
-    next.clamp(10, 500_000)
+    next.clamp(10, 100_000)
 }
 
 fn adjust_batch(current: u32, util: f64, target: f64) -> u32 {
@@ -297,5 +406,5 @@ fn adjust_batch(current: u32, util: f64, target: f64) -> u32 {
     } else {
         current
     };
-    next.clamp(1, 32)
+    next.clamp(1, 16)
 }

@@ -29,9 +29,13 @@ fn run_exercise(percent: u32) -> Output {
         .expect("failed to spawn bgpucap gpuexercise")
 }
 
+fn is_gpu_util_line(line: &str) -> bool {
+    line.starts_with("gpu") && !line.starts_with("gpu-")
+}
+
 fn parse_gpu_avg(stderr: &str) -> Option<f64> {
     stderr.lines().find_map(|line| {
-        if !line.starts_with("gpu") {
+        if !is_gpu_util_line(line) {
             return None;
         }
         let after_avg = line.split("avg ").nth(1)?;
@@ -42,7 +46,7 @@ fn parse_gpu_avg(stderr: &str) -> Option<f64> {
 
 fn parse_gpu_peak(stderr: &str) -> Option<f64> {
     stderr.lines().find_map(|line| {
-        if !line.starts_with("gpu") {
+        if !is_gpu_util_line(line) {
             return None;
         }
         let after_peak = line.split("peak ").nth(1)?;
@@ -80,7 +84,7 @@ fn gpuexercise_target_levels() {
         );
 
         assert!(
-            stderr.contains(&format!("target   {percent}%")),
+            stderr.contains(&format!("{percent}%")) && stderr.contains("target"),
             "missing target line for {percent}%:\n{stderr}"
         );
         assert!(
@@ -90,6 +94,10 @@ fn gpuexercise_target_levels() {
         assert!(
             stderr.contains("gpu") && stderr.contains("avg") && stderr.contains("peak"),
             "missing gpu stats for {percent}%:\n{stderr}"
+        );
+        assert!(
+            stderr.contains("gpu-pwr") || stderr.contains("gpu-mhz"),
+            "missing extended gpu metrics for {percent}%:\n{stderr}"
         );
 
         let avg = parse_gpu_avg(&stderr).unwrap_or_else(|| {
@@ -121,4 +129,62 @@ fn gpuexercise_target_levels() {
             "expected 100% target avg ({avg_100}) >= 25% target avg ({avg_25}) - 10"
         );
     }
+}
+
+#[test]
+fn gpuexercise_command_gpu_tracking() {
+    if !apple_silicon_host() {
+        eprintln!("skipping gpuexercise command gpu test (Apple Silicon required)");
+        return;
+    }
+
+    let output = cmd()
+        .args([
+            "gpuexercise",
+            "-p",
+            "50",
+            "-s",
+            "3",
+            "--no-color",
+            "-f",
+            "sys=%gA cmd=%gC",
+        ])
+        .output()
+        .expect("failed to run gpuexercise");
+
+    assert!(output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("sys=") && stderr.contains("cmd="),
+        "missing command gpu format fields:\n{stderr}"
+    );
+}
+
+#[test]
+fn gpuexercise_format_power_and_freq() {
+    if !apple_silicon_host() {
+        eprintln!("skipping gpuexercise format test (Apple Silicon required)");
+        return;
+    }
+
+    let output = cmd()
+        .args([
+            "gpuexercise",
+            "-p",
+            "50",
+            "-s",
+            "3",
+            "-f",
+            "gpu=%gA pwr=%gB mhz=%gF target=%tG",
+        ])
+        .output()
+        .expect("failed to run gpuexercise with format");
+
+    assert!(output.status.success(), "gpuexercise failed");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("gpu=") && stderr.contains("pwr=") && stderr.contains("mhz="),
+        "missing format fields:\n{stderr}"
+    );
+    assert!(stderr.contains("target=50"), "missing target field:\n{stderr}");
 }

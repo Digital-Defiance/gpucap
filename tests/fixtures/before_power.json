@@ -1,0 +1,1 @@
+{"command":"before","exit_code":0,"elapsed_secs":1.0,"start_bd":0,"end_bd":1,"chip":{"brand":"Apple M4 Max","family":"m4","validation_tier":"validated","validated_metrics":true},"metrics":{"gpu":{"avg":10.000000,"peak":20.000000,"samples":5},"cpu":{"avg":5.000000,"peak":10.000000,"samples":5},"gpu_power_w":{"avg":8.000000,"peak":12.000000,"samples":5}}}

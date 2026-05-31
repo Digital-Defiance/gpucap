@@ -62,10 +62,14 @@ impl Colors {
     }
 
     pub fn label(&self, name: &str, style: &str) -> String {
+        self.label_width(name, style, 8)
+    }
+
+    pub fn label_width(&self, name: &str, style: &str, width: usize) -> String {
         if self.enabled() {
-            format!("{}{:<8}{}", style, name, self.reset)
+            format!("{}{:<width$}{}", style, name, self.reset, width = width)
         } else {
-            format!("{:<8}", name)
+            format!("{:<width$}", name, width = width)
         }
     }
 

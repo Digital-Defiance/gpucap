@@ -1,5 +1,5 @@
 .\" bgpucap man page — BrightDate GPU/CPU/memory capture for Apple Silicon
-.TH BGPUCAP 1 2026-05-30 "gpucap 0.1.1" "User Commands"
+.TH BGPUCAP 1 2026-05-31 "gpucap 0.1.2" "User Commands"
 .SH NAME
 bgpucap \- run a command and report GPU, CPU, and unified memory usage
 .br
@@ -13,6 +13,15 @@ gpucap \- alias for \fBbgpucap\fR (Homebrew installs a symlink)
 .B bgpucap
 .B gpuexercise
 [\fIOPTIONS\fR]
+.PP
+.B bgpucap
+.B watch
+[\fIOPTIONS\fR]
+.PP
+.B bgpucap
+.B compare
+.I FILE
+.I FILE
 .SH DESCRIPTION
 .B bgpucap
 runs
@@ -34,10 +43,44 @@ Intel Macs and non-macOS platforms are not supported.
 .BR \-f ", " \-\-format " " \fIFORMAT\fR
 Print statistics using a
 .I FORMAT
-string (plain text; no color).
+string (plain text specifiers, or
+.B json
+for structured JSON on stdout (human reports remain on stderr).
 See
 .B FORMAT SPECIFIERS
 below.
+.TP
+.BR \-\-no\-track\-gpu
+Do not track per-process GPU usage (IORegistry), even when
+.B cmd\-gpu
+is sampled. Conflicts with
+.BR \-\-pid .
+.TP
+.BR \-\-metrics " " \fILIST\fR
+Comma-separated metrics for human or JSON output (default: all).
+Run
+.B \-\-list\-metrics
+for names and groups (\fBbasic\fR, \fBpower\fR, \fBfreq\fR, …).
+Env:
+.BR BGPUCAP_METRICS .
+.TP
+.BR \-\-list\-metrics
+Print metric names and groups, then exit.
+.TP
+.BR \-\-pid " " \fIPID\fR
+Track GPU usage for process
+.I PID
+(IORegistry). Default: wrapped child when
+.B cmd\-gpu
+is sampled.
+.TP
+.BR \-\-separator " " \fITEXT\fR
+Text between each average value and the word \fBpeak\fR in human output (default: space).
+Env:
+.BR BGPUCAP_SEPARATOR .
+.TP
+.BR \-\-columns
+Align average and peak values in columns (human output).
 .TP
 .BR \-\-interval " " \fIMS\fR
 Sampling interval in milliseconds (default: 100).
@@ -73,10 +116,33 @@ Target GPU utilization 1-100 (default: 50).
 .TP
 .BR \-s ", " \-\-seconds " " \fISEC\fR
 Duration in seconds (default: 10).
+.TP
+.BR \-\-mode " " \fIMODE\fR
+.BR best\-effort " (default), " load ", or " sample\c
+\&. \fBbest-effort\fR skips load when target \(\leq\) ambient GPU;
+\fBload\fR always generates Metal load;
+\fBsample\fR measures ambient only.
 .PP
 Also accepts
-.BR \-f ", " \-\-format
-and the color options above.
+.BR \-f ", " \-\-format "\c
+\&, \fBjson\fR output,
+.BR \-\-metrics "\c
+\&, \fB\-\-list\-metrics\fR,
+and the color and human formatting options above.
+.SS watch subcommand
+Sample GPU, CPU, and memory continuously until interrupted or
+.BR \-\-count " " \fIN\fR
+samples are collected (default interval: 1000 ms).
+Live samples print to stderr (human) or stdout as NDJSON when
+.BR \-f " " json\c
+\& is set; the aggregated summary uses the same format on exit.
+Accepts
+.BR \-\-interval ", " \-\-metrics ", " \-\-pid ", " \-\-no\-track\-gpu\c
+\&, and color options.
+.SS compare subcommand
+Compare average metrics from two
+.BR \-f " " json
+report files. Compares the common subset of metrics present in both files; metrics only in one report are skipped (noted on stderr). Prints a delta table to stdout.
 .SH FORMAT SPECIFIERS
 When
 .B \-\-format
@@ -100,6 +166,72 @@ CPU average / peak percent (system-wide).
 .TP
 .B %hA \fR/\fB %hP
 Unified memory average / peak percent.
+.TP
+.B %gI \fR/\fB %gJ
+GPU unified memory in use (bytes) avg / peak.
+.TP
+.B %gM \fR/\fB %gO
+GPU memory allocated (bytes) avg / peak.
+.TP
+.B %gR \fR/\fB %gS
+Renderer utilization percent avg / peak.
+.TP
+.B %gL \fR/\fB %gY
+Tiler utilization percent avg / peak.
+.TP
+.B %gF \fR/\fB %gV
+GPU frequency MHz avg / peak.
+.TP
+.B %gU \fR/\fB %gW
+GPU temperature °C avg / peak.
+.TP
+.B %gT
+Thermal throttle percent (share of samples throttled).
+.TP
+.B %uF \fR/\fB %uV
+CPU frequency MHz avg / peak (blended E/P cores).
+.TP
+.B %gB \fR/\fB %gK
+GPU power watts avg / peak.
+.TP
+.B %gC \fR/\fB %gD
+Wrapped command GPU percent avg / peak (IORegistry \fIaccumulatedGPUTime\fR).
+.TP
+.B %gN \fR/\fB %gQ
+GPU SRAM power watts avg / peak.
+.TP
+.B %uE \fR/\fB %uQ
+E-core CPU frequency MHz avg / peak.
+.TP
+.B %uH \fR/\fB %uZ
+P-core CPU frequency MHz avg / peak.
+.TP
+.B %uB \fR/\fB %uK
+CPU package power watts avg / peak.
+.TP
+.B %uG \fR/\fB %uR
+E-core cluster power watts avg / peak (\fIEACC_CPU\fR).
+.TP
+.B %uI \fR/\fB %uS
+P-core cluster power watts avg / peak (sum of \fIPACC*_CPU\fR).
+.TP
+.B %aB \fR/\fB %aK
+Apple Neural Engine power watts avg / peak.
+.TP
+.B %hG \fR/\fB %hJ
+DRAM power watts avg / peak.
+.TP
+.B %hW \fR/\fB %hX
+Wired memory bytes avg / peak.
+.TP
+.B %hC \fR/\fB %hD
+Compressed memory bytes avg / peak.
+.TP
+.B %hS \fR/\fB %hO
+Swap used bytes avg / peak.
+.TP
+.B %hK \fR/\fB %hL
+Memory pressure level avg / peak (0 normal, 1 warn, 2 critical).
 .TP
 .B %tG
 Exercise target GPU percent (\fBgpuexercise\fR only).
@@ -131,6 +263,14 @@ Format string (same as
 .B GPUCAP_FORMAT
 still accepted).
 .TP
+.B BGPUCAP_METRICS
+Comma-separated metric filter (same as
+.BR \-\-metrics ).
+.TP
+.B BGPUCAP_SEPARATOR
+Text between average value and \fBpeak\fR in human output (same as
+.BR \-\-separator ).
+.TP
 .B BGPUCAP_COLOR \fR/\fB BGPUCAP_COLOR_SCHEME
 Color settings (\fBGPUCAP_*\fR still accepted).
 .TP
@@ -161,16 +301,63 @@ GPU exerciser at 50% for 10 seconds:
 bgpucap gpuexercise --percent 50 --seconds 10
 .EE
 .RE
+.PP
+JSON report to a file, then compare before/after:
+.RS
+.EX
+bgpucap -f json --metrics basic sleep 5 > before.json
+bgpucap -f json --metrics basic sleep 5 > after.json
+bgpucap compare before.json after.json
+.EE
+.RE
+.PP
+Continuous sampling (Ctrl+C to stop):
+.RS
+.EX
+bgpucap watch --interval 1000
+bgpucap watch -f json -n 20
+.EE
+.RE
 .SH METRICS
+Extended metrics are validated on Apple M4 Max only (project test hardware).
+Other Apple Silicon chips (\fBm1\fR/\fBm2\fR/\fBm3\fR/\fBm4\fR family detected from brand string) report best-effort values with a footnote when not validated.
+Use \fB\-\-metrics basic\fR to skip extended IOReport subscriptions for lower overhead.
 .TP
-GPU
-IOKit \fIDevice Utilization %\fR (IOReport fallback).
+Per-process GPU %
+IORegistry \fIaccumulatedGPUTime\fR via \fB\-\-pid\fR or wrapped child (\fBcmd\-gpu\fR / \fBgpu\-pid\fR in human output).
 .TP
-CPU
+GPU %
+IOKit \fIDevice Utilization %\fR (IOReport GPUPH fallback).
+.TP
+GPU memory
+IOKit \fIIn use system memory\fR / \fIAlloc system memory\fR.
+.TP
+GPU frequency
+IOReport GPUPH residency weighted by pmgr \fIvoltage-states9\fR.
+.TP
+GPU temperature
+IOReport GPU die sensors (\fITg*a Max\fR).
+.TP
+GPU throttle
+IOReport \fIGPU_CLTM\fR thermal throttling residency.
+.TP
+GPU / CPU / DRAM power
+IOReport Energy Model (\fIGPU Energy\fR, \fICPU Energy\fR, \fIDRAM\fR); channel units (nJ vs mJ) converted to watts.
+.TP
+ANE power
+IOReport Energy Model (\fIANE\fR cluster total or \fIANE0\fR shards).
+.TP
+E-core / P-core power
+IOReport \fIEACC_CPU\fR / \fIECPU\fR and \fIPACC*_CPU\fR / \fIPCPU\fR cluster counters.
+.TP
+CPU %
 Mach \fIhost_processor_info\fR (system-wide).
 .TP
+CPU frequency
+IOReport PCPU/ECPU + pmgr DVFS tables.
+.TP
 Memory
-Unified RAM via \fIhost_statistics64\fR and \fIhw.memsize\fR.
+Unified RAM via \fIhost_statistics64\fR and \fIhw.memsize\fR; wired, compressed, swap, and \fIvm.memory_pressure\fR.
 .SH SEE ALSO
 .BR btime (1),
 .BR time (1),

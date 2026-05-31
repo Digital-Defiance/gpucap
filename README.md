@@ -32,16 +32,26 @@ Wrap any command:
 
 ```bash
 bgpucap ffmpeg -i in.mp4 out.mp4
-bgpucap --color=bright --color-scheme=bright make -j8
-bgpucap --interval 50 cargo build
+bgpucap --metrics basic sleep 1          # lightweight: gpu/cpu/memory only
+bgpucap --metrics gpu,pwr,freq sleep 5
+bgpucap --list-metrics                   # show names and groups
+bgpucap -f json sleep 1                  # JSON output
+bgpucap --pid 1234 --metrics cmd-gpu sleep 5
+bgpucap --columns --separator=' / ' sleep 1
 ```
 
 Example output (stderr, colored on TTY):
 
 ```
-gpu      avg 12.3%  peak 45.6%
-cpu      avg  8.1%  peak 23.4%
-memory   avg 52.0%  peak 55.1%
+gpu        avg 12.3%  peak 45.6%
+cpu        avg  8.1%  peak 23.4%
+memory     avg 52.0%  peak 55.1%
+gpu-mhz    avg 900 MHz  peak 1200 MHz
+e-mhz      avg 638 MHz  peak 900 MHz
+p-mhz      avg 1231 MHz  peak 3200 MHz
+gpu-pwr    avg 23 W  peak 45 W
+cpu-pwr    avg 8 W  peak 19 W
+dram-pwr   avg 21 W  peak 25 W
 real     1.234567 s
 ```
 
@@ -59,8 +69,30 @@ Environment: `BGPUCAP_FORMAT` (same as `-f`; `GPUCAP_FORMAT` still accepted).
 | Specifier | Meaning |
 |-----------|---------|
 | `%gA` / `%gP` | GPU average / peak % |
+| `%gI` / `%gJ` | GPU unified memory in use (bytes) avg / peak |
+| `%gM` / `%gO` | GPU memory allocated (bytes) avg / peak |
+| `%gR` / `%gS` | Renderer utilization % avg / peak |
+| `%gL` / `%gY` | Tiler utilization % avg / peak |
+| `%gF` / `%gV` | GPU frequency (MHz) avg / peak |
+| `%gU` / `%gW` | GPU temperature (°C) avg / peak |
+| `%gT` | Thermal throttle (% of samples throttled) |
 | `%uA` / `%uP` | CPU average / peak % |
+| `%uF` / `%uV` | CPU frequency (MHz) avg / peak |
+| `%gC` / `%gD` | Command process GPU % avg / peak (IORegistry `accumulatedGPUTime`) |
+| `%gN` / `%gQ` | GPU SRAM power (W) avg / peak |
+| `%gB` / `%gK` | GPU power (W) avg / peak |
+| `%uE` / `%uQ` | E-core CPU frequency MHz avg / peak |
+| `%uH` / `%uZ` | P-core CPU frequency MHz avg / peak |
+| `%uB` / `%uK` | CPU package power (W) avg / peak |
+| `%uG` / `%uR` | E-core power (W) avg / peak |
+| `%uI` / `%uS` | P-core power (W) avg / peak |
+| `%aB` / `%aK` | ANE power (W) avg / peak |
+| `%hG` / `%hJ` | DRAM power (W) avg / peak |
 | `%hA` / `%hP` | Memory average / peak % |
+| `%hW` / `%hX` | Wired memory (bytes) avg / peak |
+| `%hC` / `%hD` | Compressed memory (bytes) avg / peak |
+| `%hS` / `%hO` | Swap used (bytes) avg / peak |
+| `%hK` / `%hL` | Memory pressure level avg / peak (0=normal, 1=warn, 2=critical) |
 | `%tG` | Exercise target GPU % (`gpuexercise` only) |
 | `%e` | Elapsed seconds (`sec.centis`) |
 | `%E` | Elapsed wall time (`m:ss.cc` or `h:mm:ss`) |
@@ -76,14 +108,70 @@ Environment: `BGPUCAP_FORMAT` (same as `-f`; `GPUCAP_FORMAT` still accepted).
 
 Default machine format: `%gA,%gP,%uA,%uP,%hA,%hP,%e,%Ws,%Wt\n`
 
+Use `-f json` for structured JSON on **stdout** (human reports stay on stderr; respects `--metrics`). Example:
+
+```bash
+bgpucap -f json --metrics basic sleep 1 > report.json
+bgpucap compare before.json after.json
+```
+
+### Human report options
+
+- `--metrics=LIST` — comma-separated metrics or groups (`basic`, `power`, `freq`, …). Env: `BGPUCAP_METRICS`. Default: all.
+- `--list-metrics` — print metric names and groups
+- `--separator=TEXT` — between avg value and `peak` (default: space). Env: `BGPUCAP_SEPARATOR`
+- `--columns` — align avg/peak values in columns
+- `--pid=PID` — track GPU usage for a specific process (IORegistry). Default child PID when `cmd-gpu` is sampled.
+- `--no-track-gpu` — skip per-process GPU tracking even when `cmd-gpu` is in the metric set (conflicts with `--pid`).
+
+When `--metrics=basic` (or a subset without extended metrics), bgpucap skips IOReport energy/freq subscriptions for lower overhead.
+
+### Continuous watch
+
+Sample system metrics until Ctrl+C (or `--count N`):
+
+```bash
+bgpucap watch                          # human live lines on stderr, summary on exit
+bgpucap watch -n 10 --interval 500     # 10 samples every 500 ms
+bgpucap watch -f json                  # NDJSON samples + final JSON on stdout
+bgpucap watch --metrics basic --pid 1234
+```
+
+Live samples go to stderr (human) or stdout as NDJSON (`-f json`). The aggregated summary uses the same format as a normal run on exit.
+
+### Compare JSON reports
+
+Diff average metrics between two `-f json` captures:
+
+```bash
+bgpucap -f json --metrics basic sleep 5 > before.json
+# … run workload …
+bgpucap -f json --metrics basic sleep 5 > after.json
+bgpucap compare before.json after.json
+```
+
+Output is a plain table on stdout: left avg, right avg, and delta per metric. Only metrics present in **both** reports are compared; one-sided metrics are skipped (noted on stderr).
+
 ### GPU exerciser
 
 Generate sustained GPU load for testing (`gpuexercise` is a subcommand, not a separate binary):
 
 ```bash
 bgpucap gpuexercise --percent 50 --seconds 10
-bgpucap gpuexercise -p 75 -s 5 -f 'target=%tG gpu=%gA/%gP'
+bgpucap gpuexercise -p 75 -s 5 -f json
+bgpucap gpuexercise --mode sample -s 5    # ambient measurement only
+bgpucap gpuexercise --mode load -p 80 -s 5  # always generate load
 ```
+
+**Modes** (`--mode`):
+
+| Mode | Behavior |
+|------|----------|
+| `best-effort` (default) | Skip GPU load if target ≤ ambient; suggests a reachable `--percent` |
+| `load` | Always generate Metal load to chase target |
+| `sample` | No load; measure ambient GPU for the duration |
+
+Also accepts `-f`, `--metrics`, color, and output formatting options.
 
 ### Color output
 
@@ -98,9 +186,20 @@ Follows BrightDate / bright-iputils conventions:
 
 | Metric | Source |
 |--------|--------|
-| GPU | IOKit `Device Utilization %` (IOReport fallback) |
-| CPU | Mach `host_processor_info` (system-wide) |
-| Memory | Unified RAM via `host_statistics64` + `hw.memsize` |
+| GPU % | IOKit `Device Utilization %` (IOReport GPUPH fallback) |
+| GPU memory | IOKit `PerformanceStatistics` (in use / allocated bytes) |
+| Renderer / tiler | IOKit `Renderer/Tiler Utilization %` |
+| GPU frequency | IOReport GPUPH + pmgr `voltage-states9` DVFS table |
+| GPU temperature | IOReport `Tg*a Max` sensors |
+| GPU throttle | IOReport `GPU_CLTM` (CLTM-induced perf states) |
+| GPU / CPU / DRAM / ANE power | IOReport Energy Model (`GPU Energy`, `CPU Energy`, `DRAM`, `ANE`/`ANE0`) |
+| CPU % | Mach `host_processor_info` (system-wide) |
+| CPU frequency | IOReport ECPU/PCPU + pmgr DVFS tables (per-cluster + blended) |
+| Memory % | Unified RAM via `host_statistics64` + `hw.memsize` |
+| Wired / compressed / swap | `host_statistics64`, `vm.swapusage` |
+| Memory pressure | `vm.memory_pressure` |
+
+Extended metrics are **validated on Apple M4 Max** only (project test hardware). Other Apple Silicon chips (M1–M4 variants) report best-effort values; a footnote appears when validation status is not `validated`. Chip family is detected from `machdep.cpu.brand_string` for JSON output (`chip.family`: `m1`/`m2`/`m3`/`m4`).
 
 Samples are taken every `--interval` ms (default 100) while the child runs.
 
