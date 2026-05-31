@@ -1,0 +1,181 @@
+.\" bgpucap man page — BrightDate GPU/CPU/memory capture for Apple Silicon
+.TH BGPUCAP 1 2026-05-30 "gpucap 0.1.1" "User Commands"
+.SH NAME
+bgpucap \- run a command and report GPU, CPU, and unified memory usage
+.br
+gpucap \- alias for \fBbgpucap\fR (Homebrew installs a symlink)
+.SH SYNOPSIS
+.B bgpucap
+[\fIOPTIONS\fR]
+.I COMMAND
+[\fIARGS\fR...]
+.PP
+.B bgpucap
+.B gpuexercise
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+.B bgpucap
+runs
+.I COMMAND
+with its arguments, polls system metrics while the child runs, then prints
+average and peak GPU, CPU, and unified memory utilization to stderr.
+Exit status matches the child process.
+.PP
+The crate is named \fBgpucap\fR; the BrightDate ecosystem command is
+\fBbgpucap\fR (like \fBbtime\fR for \fBtime\fR).
+.PP
+Apple Silicon Macs only (M1/M2/M3/M4 and later, arm64).
+Intel Macs and non-macOS platforms are not supported.
+.SH OPTIONS
+.TP
+.BR \-f ", " \-\-format " " \fIFORMAT\fR
+Print statistics using a
+.I FORMAT
+string (plain text; no color).
+See
+.B FORMAT SPECIFIERS
+below.
+.TP
+.BR \-\-interval " " \fIMS\fR
+Sampling interval in milliseconds (default: 100).
+.TP
+.BR \-\-color " [=" \fIWHEN\fR "]"
+Colorize the default human report:
+.BR auto ", " always ", " never ", " plain ", " ansi ", or " truecolor
+(default:
+.BR auto ).
+Ignored when
+.B \-\-format
+is set.
+.TP
+.BR \-\-no\-color
+Disable color output.
+.TP
+.BR \-\-color\-scheme " " \fISCHEME\fR
+Color palette:
+.BR default " or " bright
+(default:
+.BR default ).
+.TP
+.BR \-h ", " \-\-help
+Print help.
+.TP
+.BR \-V ", " \-\-version
+Print version.
+.SS gpuexercise subcommand
+Generate sustained GPU load for testing via a Metal compute shader.
+.TP
+.BR \-p ", " \-\-percent " " \fIPCT\fR
+Target GPU utilization 1-100 (default: 50).
+.TP
+.BR \-s ", " \-\-seconds " " \fISEC\fR
+Duration in seconds (default: 10).
+.PP
+Also accepts
+.BR \-f ", " \-\-format
+and the color options above.
+.SH FORMAT SPECIFIERS
+When
+.B \-\-format
+or
+.B BGPUCAP_FORMAT
+is set, output is always plain text.
+Specifiers follow BrightDate
+.BR btime \-f
+conventions where applicable.
+.PP
+Full reference:
+.RS
+https://github.com/Digital-Defiance/brightdate-rust/blob/main/FORMAT-SPEC.md
+.RE
+.TP
+.B %gA \fR/\fB %gP
+GPU average / peak percent (one decimal, no % suffix).
+.TP
+.B %uA \fR/\fB %uP
+CPU average / peak percent (system-wide).
+.TP
+.B %hA \fR/\fB %hP
+Unified memory average / peak percent.
+.TP
+.B %tG
+Exercise target GPU percent (\fBgpuexercise\fR only).
+.TP
+.B %e \fR/\fB %E \fR/\fB %B \fR/\fB %b \fR/\fB %dE
+Elapsed time (seconds, h:mm:ss, BrightDate days, millidays).
+.TP
+.B %Ws \fR/\fB %N
+Command start BrightDate (9 decimal places, days since J2000.0).
+.TP
+.B %Wt \fR/\fB %n
+Command end BrightDate.
+.TP
+.B %C
+Command line.
+.TP
+.B %x
+Child exit status.
+.PP
+Default machine format (ends with a newline):
+.RS
+%gA,%gP,%uA,%uP,%hA,%hP,%e,%Ws,%Wt
+.RE
+.SH ENVIRONMENT
+.TP
+.B BGPUCAP_FORMAT
+Format string (same as
+.BR \-f ;
+.B GPUCAP_FORMAT
+still accepted).
+.TP
+.B BGPUCAP_COLOR \fR/\fB BGPUCAP_COLOR_SCHEME
+Color settings (\fBGPUCAP_*\fR still accepted).
+.TP
+.B NO_COLOR \fR/\fB CLICOLOR \fR/\fB CLICOLOR_FORCE
+Standard color control variables.
+.SH EXIT STATUS
+Returns the exit status of
+.I COMMAND
+on normal termination, or 126/127 if the command could not be executed.
+.SH EXAMPLES
+Wrap a command (colored report on TTY):
+.RS
+.EX
+bgpucap ffmpeg -i in.mp4 out.mp4
+.EE
+.RE
+.PP
+Machine-readable CSV with BrightDate timestamps:
+.RS
+.EX
+bgpucap -f '%gA,%gP,%uA,%uP,%hA,%hP,%e,%Ws,%Wt' sleep 1
+.EE
+.RE
+.PP
+GPU exerciser at 50% for 10 seconds:
+.RS
+.EX
+bgpucap gpuexercise --percent 50 --seconds 10
+.EE
+.RE
+.SH METRICS
+.TP
+GPU
+IOKit \fIDevice Utilization %\fR (IOReport fallback).
+.TP
+CPU
+Mach \fIhost_processor_info\fR (system-wide).
+.TP
+Memory
+Unified RAM via \fIhost_statistics64\fR and \fIhw.memsize\fR.
+.SH SEE ALSO
+.BR btime (1),
+.BR time (1)
+.PP
+Project: https://github.com/Digital-Defiance/gpucap
+.br
+Docs: https://digital-defiance.github.io/gpucap/
+.SH AUTHORS
+Digital Defiance.
+.SH COPYRIGHT
+MIT License.

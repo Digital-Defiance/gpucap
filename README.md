@@ -1,13 +1,21 @@
-# gpucap
+# gpucap (`bgpucap`)
 
 Run a command like `time(1)` and report **GPU**, **CPU**, and **unified memory** utilization on Apple Silicon Macs.
 
-**Documentation:** [gpucap docs](https://digital-defiance.github.io/gpucap/) · [crates.io](https://crates.io/crates/gpucap)
+| | |
+|---|---|
+| **Command** | `bgpucap` |
+| **Crate** | [`gpucap`](https://crates.io/crates/gpucap) |
+| **Docs** | [digital-defiance.github.io/gpucap](https://digital-defiance.github.io/gpucap/) |
+| **Man page** | `man bgpucap` (installed by Homebrew) |
 
 ```bash
-cargo install gpucap
-gpucap sleep 1
+cargo install gpucap    # installs executable bgpucap
+bgpucap sleep 1
+man bgpucap             # after Homebrew install
 ```
+
+Homebrew also symlinks `gpucap` → `bgpucap` for backward compatibility.
 
 ## Requirements
 
@@ -21,9 +29,9 @@ Intel Macs and non-macOS platforms are not supported.
 Wrap any command:
 
 ```bash
-gpucap ffmpeg -i in.mp4 out.mp4
-gpucap --color=bright --color-scheme=bright make -j8
-gpucap --interval 50 cargo build
+bgpucap ffmpeg -i in.mp4 out.mp4
+bgpucap --color=bright --color-scheme=bright make -j8
+bgpucap --interval 50 cargo build
 ```
 
 Example output (stderr, colored on TTY):
@@ -40,11 +48,11 @@ real     1.234567 s
 Machine-readable output using [BrightDate FORMAT-SPEC](https://github.com/Digital-Defiance/brightdate-rust/blob/main/FORMAT-SPEC.md) conventions where applicable. Format output is always plain text (no color), even with `--color=always`.
 
 ```bash
-gpucap -f '%gA,%gP,%uA,%uP,%hA,%hP,%e,%Ws,%Wt' sleep 1
-gpucap gpuexercise -f 'target=%tG gpu=%gA/%gP elapsed=%e' --percent 50 --seconds 5
+bgpucap -f '%gA,%gP,%uA,%uP,%hA,%hP,%e,%Ws,%Wt' sleep 1
+bgpucap gpuexercise -f 'target=%tG gpu=%gA/%gP elapsed=%e' --percent 50 --seconds 5
 ```
 
-Environment: `GPUCAP_FORMAT` (same as `-f`).
+Environment: `BGPUCAP_FORMAT` (same as `-f`; `GPUCAP_FORMAT` still accepted).
 
 | Specifier | Meaning |
 |-----------|---------|
@@ -71,8 +79,8 @@ Default machine format: `%gA,%gP,%uA,%uP,%hA,%hP,%e,%Ws,%Wt\n`
 Generate sustained GPU load for testing (`gpuexercise` is a subcommand, not a separate binary):
 
 ```bash
-gpucap gpuexercise --percent 50 --seconds 10
-gpucap gpuexercise -p 75 -s 5 -f 'target=%tG gpu=%gA/%gP'
+bgpucap gpuexercise --percent 50 --seconds 10
+bgpucap gpuexercise -p 75 -s 5 -f 'target=%tG gpu=%gA/%gP'
 ```
 
 ### Color output
@@ -82,7 +90,7 @@ Follows BrightDate / bright-iputils conventions:
 - `--color[=WHEN]` — `auto`, `always`, `never`, `plain`, `ansi`, `truecolor`
 - `--no-color`
 - `--color-scheme=SCHEME` — `default` or `bright`
-- Environment: `GPUCAP_COLOR`, `GPUCAP_COLOR_SCHEME`, plus standard `NO_COLOR` / `CLICOLOR`
+- Environment: `BGPUCAP_COLOR`, `BGPUCAP_COLOR_SCHEME` (`GPUCAP_*` still accepted), plus standard `NO_COLOR` / `CLICOLOR`
 
 ## Metrics
 
@@ -100,6 +108,7 @@ Samples are taken every `--interval` ms (default 100) while the child runs.
 
 ```sh
 cargo install gpucap
+bgpucap --version
 ```
 
 ### Homebrew
@@ -107,7 +116,27 @@ cargo install gpucap
 ```sh
 brew tap digital-defiance/tap
 brew install digital-defiance/tap/gpucap
+bgpucap sleep 1
+man bgpucap
+# gpucap is also available as a symlink to bgpucap
 ```
+
+`cargo install gpucap` installs the `bgpucap` binary only; copy `man/bgpucap.1` from the crate source to your man path if you want the man page without Homebrew.
+
+If Homebrew reports the formula in multiple taps, remove the local dev tap:
+
+```sh
+brew untap digital-defiance/tap-local
+```
+
+## Release
+
+```sh
+./scripts/release.sh patch          # bump, test, publish, update homebrew formula
+./scripts/release.sh 0.2.0 --dry-run
+```
+
+Requires `cargo login` and a checkout of [homebrew-tap](https://github.com/Digital-Defiance/homebrew-tap) at `/Volumes/Code/homebrew-tap` (override with `HOMEBREW_TAP_FORMULA`).
 
 ## License
 

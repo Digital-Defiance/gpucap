@@ -21,16 +21,16 @@ use std::time::Duration;
 
 fn parse_color_setting(value: &str, setting: &str) -> Result<ColorWhen, i32> {
     parse_color_when(value).map_err(|e| {
-        eprintln!("gpucap: {e}");
-        eprintln!("gpucap: try `gpucap --help` for valid {setting} values");
+        eprintln!("bgpucap: {e}");
+        eprintln!("bgpucap: try `bgpucap --help` for valid {setting} values");
         2
     })
 }
 
 fn parse_scheme_setting(value: &str) -> Result<ColorScheme, i32> {
     parse_color_scheme(value).map_err(|e| {
-        eprintln!("gpucap: {e}");
-        eprintln!("gpucap: try `gpucap --help` for valid --color-scheme values");
+        eprintln!("bgpucap: {e}");
+        eprintln!("bgpucap: try `bgpucap --help` for valid --color-scheme values");
         2
     })
 }
@@ -40,15 +40,19 @@ pub(crate) fn resolve_color_settings(matches: &clap::ArgMatches) -> Result<Color
         ColorWhen::Never
     } else if let Some(value) = matches.get_one::<String>("color") {
         parse_color_setting(value, "--color values")?
-    } else if let Ok(value) = std::env::var("GPUCAP_COLOR") {
-        parse_color_setting(&value, "GPUCAP_COLOR values")?
+    } else if let Ok(value) = std::env::var("BGPUCAP_COLOR")
+        .or_else(|_| std::env::var("GPUCAP_COLOR"))
+    {
+        parse_color_setting(&value, "BGPUCAP_COLOR values")?
     } else {
         ColorWhen::Auto
     };
 
     let scheme = if let Some(value) = matches.get_one::<String>("color_scheme") {
         parse_scheme_setting(value)?
-    } else if let Ok(value) = std::env::var("GPUCAP_COLOR_SCHEME") {
+    } else if let Ok(value) = std::env::var("BGPUCAP_COLOR_SCHEME")
+        .or_else(|_| std::env::var("GPUCAP_COLOR_SCHEME"))
+    {
         parse_scheme_setting(&value)?
     } else {
         ColorScheme::Default
@@ -70,16 +74,16 @@ pub fn run(args: &[String]) -> i32 {
 }
 
 fn run_capture(args: &[String]) -> i32 {
-    let cmd = Command::new("gpucap")
+    let cmd = Command::new("bgpucap")
         .version(env!("CARGO_PKG_VERSION"))
         .about("Run a command and report GPU, CPU, and unified memory usage on Apple Silicon")
         .long_about(
             "Run a command and report GPU, CPU, and unified memory usage.\n\n\
              Examples:\n  \
-               gpucap sleep 1\n  \
-               gpucap -f '%gA,%uA,%e,%Ws,%Wt' sleep 1\n  \
-               gpucap --color=bright -- ffmpeg -i in.mp4 out.mp4\n  \
-               gpucap gpuexercise --percent 60 --seconds 5",
+               bgpucap sleep 1\n  \
+               bgpucap -f '%gA,%uA,%e,%Ws,%Wt' sleep 1\n  \
+               bgpucap --color=bright -- ffmpeg -i in.mp4 out.mp4\n  \
+               bgpucap gpuexercise --percent 60 --seconds 5",
         )
         .arg(
             Arg::new("format")
@@ -142,7 +146,7 @@ fn run_capture(args: &[String]) -> i32 {
     let interval_ms: u64 = match matches.get_one::<String>("interval").unwrap().parse() {
         Ok(ms) if ms > 0 => ms,
         _ => {
-            eprintln!("gpucap: interval must be a positive integer (milliseconds)");
+            eprintln!("bgpucap: interval must be a positive integer (milliseconds)");
             return 2;
         }
     };
@@ -156,7 +160,7 @@ fn run_capture(args: &[String]) -> i32 {
     let result = match run_command(&cmd_args, Duration::from_millis(interval_ms)) {
         Ok(result) => result,
         Err(e) => {
-            eprintln!("gpucap: failed to run '{}': {}", cmd_args[0], e);
+            eprintln!("bgpucap: failed to run '{}': {}", cmd_args[0], e);
             return if e.kind() == std::io::ErrorKind::NotFound {
                 127
             } else {
@@ -168,7 +172,11 @@ fn run_capture(args: &[String]) -> i32 {
     let format = matches
         .get_one::<String>("format")
         .cloned()
-        .or_else(|| std::env::var("GPUCAP_FORMAT").ok());
+        .or_else(|| {
+            std::env::var("BGPUCAP_FORMAT")
+                .or_else(|_| std::env::var("GPUCAP_FORMAT"))
+                .ok()
+        });
 
     if let Some(fmt) = format {
         let ctx = FormatContext {
@@ -183,7 +191,7 @@ fn run_capture(args: &[String]) -> i32 {
             exercise_target: None,
         };
         if let Err(e) = summarize_line(&mut std::io::stderr(), &fmt, &ctx) {
-            eprintln!("gpucap: {e}");
+            eprintln!("bgpucap: {e}");
             return 1;
         }
     } else {

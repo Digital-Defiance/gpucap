@@ -138,7 +138,7 @@ pub fn run(args: &[String]) -> i32 {
     let target: f64 = match matches.get_one::<String>("percent").unwrap().parse() {
         Ok(p) if (1.0..=100.0).contains(&p) => p,
         _ => {
-            eprintln!("gpucap gpuexercise: --percent must be between 1 and 100");
+            eprintln!("bgpucap gpuexercise: --percent must be between 1 and 100");
             return 2;
         }
     };
@@ -146,7 +146,7 @@ pub fn run(args: &[String]) -> i32 {
     let seconds: f64 = match matches.get_one::<String>("seconds").unwrap().parse() {
         Ok(s) if s > 0.0 => s,
         _ => {
-            eprintln!("gpucap gpuexercise: --seconds must be a positive number");
+            eprintln!("bgpucap gpuexercise: --seconds must be a positive number");
             return 2;
         }
     };
@@ -156,7 +156,11 @@ pub fn run(args: &[String]) -> i32 {
             let format = matches
                 .get_one::<String>("format")
                 .cloned()
-                .or_else(|| std::env::var("GPUCAP_FORMAT").ok());
+                .or_else(|| {
+                    std::env::var("BGPUCAP_FORMAT")
+                        .or_else(|_| std::env::var("GPUCAP_FORMAT"))
+                        .ok()
+                });
 
             if let Some(fmt) = format {
                 let ctx = FormatContext {
@@ -177,7 +181,7 @@ pub fn run(args: &[String]) -> i32 {
                     exercise_target: Some(target),
                 };
                 if let Err(e) = summarize_line(&mut std::io::stderr(), &fmt, &ctx) {
-                    eprintln!("gpucap gpuexercise: {e}");
+                    eprintln!("bgpucap gpuexercise: {e}");
                     return 1;
                 }
             } else {
@@ -186,7 +190,7 @@ pub fn run(args: &[String]) -> i32 {
             0
         }
         Err(e) => {
-            eprintln!("gpucap gpuexercise: {e}");
+            eprintln!("bgpucap gpuexercise: {e}");
             1
         }
     }
@@ -206,7 +210,7 @@ fn exercise_gpu(target: f64, seconds: f64) -> Result<ExerciseResult, String> {
     let baseline = measure_baseline();
     if target <= baseline + 1.0 {
         eprintln!(
-            "gpucap gpuexercise: note: ambient GPU usage is about {baseline:.0}%; \
+            "bgpucap gpuexercise: note: ambient GPU usage is about {baseline:.0}%; \
              cannot hold a target at or below that (try a higher --percent)"
         );
     }

@@ -1,14 +1,14 @@
 pub fn ensure_apple_silicon() -> Result<(), i32> {
     if let Err(reason) = check_apple_silicon() {
-        eprintln!("gpucap: {reason}");
+        eprintln!("bgpucap: {reason}");
         eprintln!();
-        eprintln!("gpucap is for Apple Silicon Macs only (M1, M2, M3, M4, and later).");
+        eprintln!("bgpucap is for Apple Silicon Macs only (M1, M2, M3, M4, and later).");
         eprintln!("It reads AGX GPU metrics and unified memory statistics that are not");
         eprintln!("available on Intel Macs or non-macOS platforms.");
         eprintln!();
         eprintln!("Build and run on an Apple Silicon Mac:");
         eprintln!("  cargo build --release");
-        eprintln!("  gpucap -- sleep 1");
+        eprintln!("  bgpucap -- sleep 1");
         return Err(2);
     }
     Ok(())

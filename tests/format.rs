@@ -2,7 +2,7 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 
 fn cmd() -> Command {
-    Command::cargo_bin("gpucap").expect("gpucap binary not found")
+    Command::cargo_bin("bgpucap").expect("bgpucap binary not found")
 }
 
 fn apple_silicon_host() -> bool {
@@ -45,7 +45,7 @@ fn format_env_var() {
     }
 
     cmd()
-        .env("GPUCAP_FORMAT", "cmd=%C x=%x")
+        .env("BGPUCAP_FORMAT", "cmd=%C x=%x")
         .args(["sleep", "0"])
         .assert()
         .success()
@@ -63,7 +63,7 @@ fn format_plain_no_ansi() {
     let output = cmd()
         .args(["--color=always", "-f", "gpu=%gA", "sleep", "0"])
         .output()
-        .expect("failed to run gpucap");
+        .expect("failed to run bgpucap");
 
     assert!(output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -99,7 +99,7 @@ fn format_default_constant() {
     }
 
     cmd()
-        .env("GPUCAP_FORMAT", gpucap::DEFAULT_FORMAT)
+        .env("BGPUCAP_FORMAT", gpucap::DEFAULT_FORMAT)
         .args(["sleep", "0"])
         .assert()
         .success()

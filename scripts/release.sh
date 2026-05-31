@@ -195,6 +195,6 @@ Next steps:
   3. Install/upgrade (use fully-qualified name if tap-local is also tapped):
        brew untap digital-defiance/tap-local   # optional, avoids duplicate formula
        brew update
-       brew upgrade digital-defiance/tap/gpucap
+       brew upgrade digital-defiance/tap/gpucap   # command: bgpucap (gpucap symlink)
 
 EOF

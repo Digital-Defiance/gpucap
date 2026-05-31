@@ -153,7 +153,7 @@ mod tests {
 
     fn sample_context() -> FormatContext {
         FormatContext {
-            command: vec!["gpucap".into(), "sleep".into(), "1".into()],
+            command: vec!["bgpucap".into(), "sleep".into(), "1".into()],
             wait_status: 0,
             elapsed_secs: 0.5,
             start_bd: 9645.0,
@@ -219,7 +219,7 @@ mod tests {
         let mut buf = Vec::new();
         summarize(&mut buf, "cmd=%C x=%x", &ctx).unwrap();
         let text = String::from_utf8(buf).unwrap();
-        assert!(text.contains("cmd=gpucap sleep 1"));
+        assert!(text.contains("cmd=bgpucap sleep 1"));
         assert!(text.contains("x=0"));
 
         let mut default = Vec::new();

@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="gpucap — run a command like time(1) and report GPU, CPU, and unified memory usage on Apple Silicon. BrightDate format strings, color output, and a built-in GPU exerciser."
+      content="bgpucap — BrightDate GPU/CPU/memory capture for Apple Silicon. Run a command like time(1), report utilization, optional -f format strings."
     />
-    <title>gpucap — GPU, CPU &amp; memory on Apple Silicon</title>
+    <title>bgpucap — GPU, CPU &amp; memory on Apple Silicon</title>
     <style>
       *,
       *::before,
@@ -517,12 +517,13 @@
   </head>
   <body>
     <nav>
-      <a class="nav-brand" href="#">gpucap</a>
+      <a class="nav-brand" href="#">bgpucap</a>
       <ul class="nav-links">
         <li><a href="#usage">Usage</a></li>
         <li><a href="#format">Format</a></li>
         <li><a href="#metrics">Metrics</a></li>
         <li><a href="#install">Install</a></li>
+        <li><a href="#manual">Manual</a></li>
         <li>
           <a href="https://github.com/Digital-Defiance/gpucap">GitHub</a>
         </li>
@@ -530,16 +531,17 @@
     </nav>
 
     <header class="hero">
-      <div class="hero-eyebrow">Apple Silicon · GPU · CPU · unified memory</div>
-      <h1>gpu<span>cap</span></h1>
+      <div class="hero-eyebrow">Bright utility · Apple Silicon · GPU · CPU · memory</div>
+      <h1>bgpu<span>cap</span></h1>
       <p class="hero-sub">
-        Run any command like <code>time(1)</code> and report
+        BrightDate ecosystem command for Apple Silicon: run any command like
+        <code>time(1)</code> and report
         <strong style="color: var(--text-bright)">GPU</strong>,
         <strong style="color: var(--text-bright)">CPU</strong>, and
         <strong style="color: var(--text-bright)">unified memory</strong>
-        utilization on Apple Silicon Macs. Colorized human reports on TTY;
-        <code>-f</code> format strings for scripts — with BrightDate timestamps
-        for log correlation.
+        utilization. Crate name <code>gpucap</code>; CLI command
+        <code>bgpucap</code> — like <code>ripgrep</code>/<code>rg</code> or
+        <code>btime</code>.
       </p>
 
       <div class="terminal">
@@ -551,14 +553,14 @@
         <div class="terminal-body">
           <!-- prettier-ignore -->
           <div class="cmd-line"><span class="cmt"># wrap a command — colored report on stderr</span>
-<span class="prompt">$</span><span class="cmd"> gpucap ffmpeg -i in.mp4 out.mp4</span>
+<span class="prompt">$</span><span class="cmd"> bgpucap ffmpeg -i in.mp4 out.mp4</span>
 <span class="out-label">gpu     </span><span class="out-value">avg 12.3%</span>  <span class="out-warn">peak 45.6%</span>
 <span class="out-label">cpu     </span><span class="out-value">avg  8.1%</span>  <span class="out-warn">peak 23.4%</span>
 <span class="out-label">memory  </span><span class="out-value">avg 52.0%</span>  <span class="out-warn">peak 55.1%</span>
 <span class="out-label">real    </span><span class="out-value">1.234567</span><span class="out-unit"> s</span>
 
 <span class="cmt"># machine output — CSV with BrightDate start/end</span>
-<span class="prompt">$</span><span class="cmd"> gpucap -f '%gA,%gP,%uA,%uP,%hA,%hP,%e,%Ws,%Wt' sleep 1</span>
+<span class="prompt">$</span><span class="cmd"> bgpucap -f '%gA,%gP,%uA,%uP,%hA,%hP,%e,%Ws,%Wt' sleep 1</span>
 <span class="out">0.0,0.0,2.1,4.3,51.2,51.4,1.00,9628.198441000,9628.199441000</span></div>
         </div>
       </div>
@@ -576,22 +578,22 @@
         <div class="section-label">Usage</div>
         <h2>Wrap any command.</h2>
         <p>
-          <code>gpucap</code> forks and execs your command, polls metrics every
+          <code>bgpucap</code> forks and execs your command, polls metrics every
           100&nbsp;ms (configurable with <code>--interval</code>), then prints a
           summary to stderr. Exit status matches the child process.
         </p>
 
-        <pre><code>gpucap sleep 1
-gpucap --color=bright -- ffmpeg -i in.mp4 out.mp4
-gpucap --interval 50 make -j8</code></pre>
+        <pre><code>bgpucap sleep 1
+bgpucap --color=bright -- ffmpeg -i in.mp4 out.mp4
+bgpucap --interval 50 make -j8</code></pre>
 
         <h3>GPU exerciser</h3>
         <p>
           <code>gpuexercise</code> is a subcommand (not a separate binary) that
           drives sustained GPU load via a Metal compute shader and feedback loop:
         </p>
-        <pre><code>gpucap gpuexercise --percent 50 --seconds 10
-gpucap gpuexercise -f 'target=%tG gpu=%gA/%gP elapsed=%e' -p 75 -s 5</code></pre>
+        <pre><code>bgpucap gpuexercise --percent 50 --seconds 10
+bgpucap gpuexercise -f 'target=%tG gpu=%gA/%gP elapsed=%e' -p 75 -s 5</code></pre>
 
         <div class="feature-grid">
           <div class="feature-card">
@@ -609,8 +611,9 @@ gpucap gpuexercise -f 'target=%tG gpu=%gA/%gP elapsed=%e' -p 75 -s 5</code></pre
               <code>always</code>, <code>never</code>, <code>plain</code>,
               <code>ansi</code>, <code>truecolor</code>.
               <code>--color-scheme</code> — <code>default</code> or
-              <code>bright</code>. Env: <code>GPUCAP_COLOR</code>,
-              <code>GPUCAP_COLOR_SCHEME</code>, plus <code>NO_COLOR</code> /
+              <code>bright</code>. Env: <code>BGPUCAP_COLOR</code>,
+              <code>BGPUCAP_COLOR_SCHEME</code> (<code>GPUCAP_*</code> still
+              accepted), plus <code>NO_COLOR</code> /
               <code>CLICOLOR</code>.
             </p>
           </div>
@@ -619,8 +622,9 @@ gpucap gpuexercise -f 'target=%tG gpu=%gA/%gP elapsed=%e' -p 75 -s 5</code></pre
         <p class="callout">
           <strong style="color: var(--text-bright)">Format vs. color:</strong>
           When <code>-f</code> / <code>--format</code> (or
-          <code>GPUCAP_FORMAT</code>) is set, output is always plain text — even
-          if <code>--color=always</code>. This matches BrightDate ecosystem
+          <code>BGPUCAP_FORMAT</code>; <code>GPUCAP_FORMAT</code> still accepted)
+          is set, output is always plain text — even with
+          <code>--color=always</code>. This matches BrightDate ecosystem
           conventions: human reports colorize on TTY; machine format strings stay
           script-safe.
         </p>
@@ -636,11 +640,11 @@ gpucap gpuexercise -f 'target=%tG gpu=%gA/%gP elapsed=%e' -p 75 -s 5</code></pre
           <a class="link" href="https://github.com/Digital-Defiance/brightdate-rust/blob/main/FORMAT-SPEC.md">BrightDate FORMAT-SPEC</a>
           where applicable, plus gpucap-specific utilization specifiers.
           Set via <code>-f</code> or environment variable
-          <code>GPUCAP_FORMAT</code>.
+          <code>BGPUCAP_FORMAT</code> (<code>GPUCAP_FORMAT</code> still accepted).
         </p>
 
-        <pre><code>gpucap -f '%gA,%gP,%uA,%uP,%hA,%hP,%e,%Ws,%Wt' sleep 1
-gpucap -f 'cmd=%C x=%x gpu_peak=%gP start=%Ws' cargo build</code></pre>
+        <pre><code>bgpucap -f '%gA,%gP,%uA,%uP,%hA,%hP,%e,%Ws,%Wt' sleep 1
+bgpucap -f 'cmd=%C x=%x gpu_peak=%gP start=%Ws' cargo build</code></pre>
 
         <div class="format-section">
           <span class="tier-badge">gpucap</span>
@@ -745,7 +749,7 @@ gpucap -f 'cmd=%C x=%x gpu_peak=%gP start=%Ws' cargo build</code></pre>
             <div class="step-body">
               <h3>Cargo</h3>
               <pre><code>cargo install gpucap
-gpucap sleep 1</code></pre>
+bgpucap sleep 1</code></pre>
             </div>
           </div>
 
@@ -754,7 +758,9 @@ gpucap sleep 1</code></pre>
             <div class="step-body">
               <h3>Homebrew</h3>
               <pre><code>brew tap digital-defiance/tap
-brew install digital-defiance/tap/gpucap</code></pre>
+brew install digital-defiance/tap/gpucap
+bgpucap sleep 1
+# Homebrew also symlinks gpucap → bgpucap</code></pre>
             </div>
           </div>
 
@@ -762,18 +768,39 @@ brew install digital-defiance/tap/gpucap</code></pre>
             <div class="step-num">3</div>
             <div class="step-body">
               <h3>Verify</h3>
-              <pre><code>gpucap --version
-gpucap --help
-gpucap -f '%gA,%uA,%e' sleep 0.1</code></pre>
+              <pre><code>bgpucap --version
+bgpucap --help
+man bgpucap
+bgpucap -f '%gA,%uA,%e' sleep 0.1</code></pre>
             </div>
           </div>
         </div>
       </div>
     </section>
 
+    <section id="manual">
+      <div class="container">
+        <div class="section-label">Reference</div>
+        <h2>Man page</h2>
+        <p>
+          <code>man/bgpucap.1</code> ships with the crate. Homebrew installs it
+          as <code>man bgpucap</code>. The page documents options, format
+          specifiers, environment variables, and the
+          <code>gpuexercise</code> subcommand.
+        </p>
+        <pre><code>man bgpucap          # after brew install
+man bgpucap | grep -A2 FORMAT   # format specifiers</code></pre>
+        <p style="font-size: 0.875rem; margin-top: 1rem">
+          Crate name remains <code>gpucap</code>; command is
+          <code>bgpucap</code>. Homebrew symlinks <code>gpucap</code> →
+          <code>bgpucap</code>.
+        </p>
+      </div>
+    </section>
+
     <footer>
       <p>
-        gpucap — MIT licensed, by
+        bgpucap (crate <code>gpucap</code>) — MIT licensed, by
         <a href="https://github.com/Digital-Defiance">Digital Defiance</a>.
         Part of the
         <a href="https://brightdate.org">BrightDate</a> and <a href="https://brightutils.digitaldefiance.org">Bright Utils</a> ecosystem.
