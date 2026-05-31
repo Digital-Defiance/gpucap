@@ -1,4 +1,7 @@
 use crate::metrics::{MetricSnapshot, PercentStats, ScalarStats, ThrottleStats};
+
+/// Version field in ``-f json`` command reports and embed snapshot JSON.
+pub const REPORT_SCHEMA: &str = "1";
 use crate::metrics_filter::{MetricFilter, MetricId};
 use crate::platform::ChipProfile;
 use crate::runner::wait_status_to_exit_code;
@@ -87,6 +90,24 @@ pub fn write_sample_line(
     writeln!(out, "}}")
 }
 
+/// Single ``sample_system`` reading (embed / watch); not a wrapped command summary.
+pub fn write_snapshot_json(
+    out: &mut dyn Write,
+    snapshot: &MetricSnapshot,
+    chip: &ChipProfile,
+    filter: &MetricFilter,
+) -> io::Result<()> {
+    write!(out, "{{")?;
+    write_str_field(out, "schema", REPORT_SCHEMA)?;
+    write!(out, ",")?;
+    write_str_field(out, "kind", "snapshot")?;
+    write!(out, ",")?;
+    write_chip(out, chip)?;
+    write!(out, ",")?;
+    write_snapshot_metrics(out, snapshot, filter)?;
+    write!(out, "}}\n")
+}
+
 pub fn write_result(
     out: &mut dyn Write,
     result: &RunResult,
@@ -95,6 +116,10 @@ pub fn write_result(
     exercise_target: Option<f64>,
 ) -> io::Result<()> {
     write!(out, "{{")?;
+    write_str_field(out, "schema", REPORT_SCHEMA)?;
+    write!(out, ",")?;
+    write_str_field(out, "kind", "run")?;
+    write!(out, ",")?;
     write_str_field(out, "command", &format_command(&result.command))?;
     write!(out, ",")?;
     write_i32_field(out, "exit_code", wait_status_to_exit_code(result.wait_status))?;
@@ -117,6 +142,68 @@ pub fn write_result(
     write!(out, ",")?;
     write_metrics(out, result, filter)?;
     write!(out, "}}\n")
+}
+
+fn instant_percent(v: f64) -> PercentStats {
+    PercentStats {
+        avg: v,
+        peak: v,
+        samples: 1,
+    }
+}
+
+fn instant_scalar(v: f64) -> ScalarStats {
+    ScalarStats {
+        avg: v,
+        peak: v,
+        samples: 1,
+    }
+}
+
+fn write_snapshot_metrics(
+    out: &mut dyn Write,
+    snapshot: &MetricSnapshot,
+    filter: &MetricFilter,
+) -> io::Result<()> {
+    write!(out, "\"metrics\":{{")?;
+    let mut first = true;
+    let mut emit = |out: &mut dyn Write, name: &str, body: &str| -> io::Result<()> {
+        if !first {
+            write!(out, ",")?;
+        }
+        first = false;
+        write!(out, "\"{name}\":{body}")
+    };
+
+    if filter.show(MetricId::Gpu) {
+        emit(out, "gpu", &percent_json(&instant_percent(snapshot.gpu)))?;
+    }
+    if filter.show(MetricId::Cpu) {
+        emit(out, "cpu", &percent_json(&instant_percent(snapshot.cpu)))?;
+    }
+    if filter.show(MetricId::Memory) {
+        emit(out, "memory", &percent_json(&instant_percent(snapshot.memory)))?;
+    }
+    if filter.show(MetricId::Pressure) {
+        emit(
+            out,
+            "mem_pressure",
+            &scalar_json(&instant_scalar(snapshot.mem_pressure as f64)),
+        )?;
+    }
+    if filter.show(MetricId::Swap) && snapshot.mem_swap_bytes > 0 {
+        emit(
+            out,
+            "mem_swap",
+            &scalar_json(&instant_scalar(snapshot.mem_swap_bytes as f64)),
+        )?;
+    }
+    if filter.show(MetricId::CmdGpu) {
+        if let Some(v) = snapshot.command_gpu {
+            emit(out, "cmd_gpu", &percent_json(&instant_percent(v)))?;
+        }
+    }
+    write!(out, "}}")
 }
 
 fn write_chip(out: &mut dyn Write, chip: &ChipProfile) -> io::Result<()> {

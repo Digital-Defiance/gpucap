@@ -1,7 +1,7 @@
 [package]
 name = "gpucap"
 description = "Run a command and report GPU, CPU, and unified memory usage on Apple Silicon"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 rust-version = "1.75"
 authors = ["Jessica Mulein <jessica@digitaldefiance.org>"]

@@ -230,6 +230,21 @@ If Homebrew reports the formula in multiple taps, remove the local dev tap:
 brew untap digital-defiance/tap-local
 ```
 
+## Embed API (library)
+
+For BrightVision Test Lab and other consumers (Rust; PyO3 planned):
+
+| Function | Purpose |
+|----------|---------|
+| `platform_supported()` | `true` on macOS Apple Silicon |
+| `sample_system(SampleTier)` | One GPU/CPU/memory/pressure snapshot (no subprocess) |
+| `snapshot_json(...)` | Single-sample JSON (`schema` **1**, `kind`: `"snapshot"`) |
+| `run_command(...)` | Wrap a command (same as CLI) |
+
+On Linux, Intel Mac, or CI without Apple Silicon, use **`btime`** for wall-clock only — bgpucap will not run.
+
+JSON command reports include `"schema": "1"`, `"kind": "run"`, plus `metrics` (same shape as `-f json` CLI).
+
 ## Release
 
 ```sh

@@ -1,6 +1,7 @@
 mod cf_utils;
 mod color;
 mod compare;
+mod embed;
 mod format;
 mod gpuexercise;
 mod gpu_proc;
@@ -16,8 +17,10 @@ mod runner;
 mod watch;
 
 pub use color::{parse_color_scheme, parse_color_when, ColorScheme, ColorWhen, Colors};
+pub use embed::{platform_supported, sample_system, snapshot_json};
 pub use format::{format_needs_extended, summarize_line, FormatContext, DEFAULT_FORMAT};
-pub use metrics::{PercentStats, SampleTier, ScalarStats, ThrottleStats};
+pub use json::REPORT_SCHEMA;
+pub use metrics::{MetricSnapshot, PercentStats, SampleTier, ScalarStats, ThrottleStats, Sampler};
 pub use metrics_filter::{MetricFilter, MetricId, METRICS_HELP};
 pub use output::{print_report, ReportStyle};
 pub use platform::{
