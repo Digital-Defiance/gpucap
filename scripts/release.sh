@@ -8,7 +8,7 @@
 #   --dry-run       Bump, build, and package only; do not publish or edit the formula
 #   --skip-tests    Skip cargo test
 #   --no-publish    Update formula from local cargo package but skip crates.io upload
-#   --formula PATH  Homebrew formula (default: /Volumes/Code/homebrew-tap/Formula/gpucap.rb)
+#   --formula PATH  Homebrew formula (default: /Volumes/Code/homebrew-tap/Formula/bgpucap.rb)
 #
 # Prerequisites:
 #   • rust/cargo, logged in for publish (`cargo login`)
@@ -26,7 +26,7 @@
 set -euo pipefail
 
 GPUCAP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FORMULA_FILE="${HOMEBREW_TAP_FORMULA:-/Volumes/Code/homebrew-tap/Formula/gpucap.rb}"
+FORMULA_FILE="${HOMEBREW_TAP_FORMULA:-/Volumes/Code/homebrew-tap/Formula/bgpucap.rb}"
 CRATE_NAME="gpucap"
 
 DRY_RUN=0
@@ -188,7 +188,7 @@ Next steps:
        git push && git push origin v${NEW}
 
   2. In homebrew-tap:
-       git add Formula/gpucap.rb
+       git add Formula/bgpucap.rb
        git commit -m "gpucap ${NEW}"
        git push
 
