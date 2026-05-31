@@ -21,8 +21,11 @@ with its arguments, polls system metrics while the child runs, then prints
 average and peak GPU, CPU, and unified memory utilization to stderr.
 Exit status matches the child process.
 .PP
-The crate is named \fBgpucap\fR; the BrightDate ecosystem command is
-\fBbgpucap\fR (like \fBbtime\fR for \fBtime\fR).
+The crate is named \fBgpucap\fR; the CLI command is \fBbgpucap\fR.
+The leading \fBb\fR is for \fBBright\fR, part of
+.BR Bright Utils
+(\(lahttps://brightutils.digitaldefiance.org\(ra),
+alongside \fBbtime\fR, \fBbfind\fR, and \fBbping\fR.
 .PP
 Apple Silicon Macs only (M1/M2/M3/M4 and later, arm64).
 Intel Macs and non-macOS platforms are not supported.
@@ -170,8 +173,11 @@ Memory
 Unified RAM via \fIhost_statistics64\fR and \fIhw.memsize\fR.
 .SH SEE ALSO
 .BR btime (1),
-.BR time (1)
+.BR time (1),
+.BR bfind (1)
 .PP
+Bright Utils: https://brightutils.digitaldefiance.org
+.br
 Project: https://github.com/Digital-Defiance/gpucap
 .br
 Docs: https://digital-defiance.github.io/gpucap/

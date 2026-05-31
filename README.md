@@ -2,6 +2,8 @@
 
 Run a command like `time(1)` and report **GPU**, **CPU**, and **unified memory** utilization on Apple Silicon Macs.
 
+Part of [Bright Utils](https://brightutils.digitaldefiance.org): the **`b`** in **`bgpucap`** is for **Bright** (same convention as `btime`, `bfind`, `bping`).
+
 | | |
 |---|---|
 | **Command** | `bgpucap` |
